@@ -2,6 +2,12 @@
 
 Use this checklist before publishing `zt-ui` as a public repository.
 
+## Release Tag Pattern
+
+- Release tags must follow `vYYYY.M.D`.
+- Example: `v2026.4.9`.
+- The GitHub release workflow rejects tags that do not match that pattern.
+
 ## Repository Hygiene
 
 - Confirm `.gitignore` excludes build outputs and local editor noise.
@@ -21,6 +27,21 @@ Use this checklist before publishing `zt-ui` as a public repository.
 - Run `zig build serve` and verify the local Zig dev server starts cleanly.
 - Verify the browser host starts cleanly and loads the generated wasm module.
 - Confirm the exported ABI and README instructions still match the code.
+
+## Packaging And Publishing
+
+- Pushing a tag such as `v2026.4.9` triggers `.github/workflows/release.yml`.
+- The workflow runs the Zig test suite, builds the release bundle, and publishes a GitHub Release named after the tag.
+- Release assets include:
+  - `zt-ui-vYYYY.M.D-web.tar.gz`
+  - `zt-ui-vYYYY.M.D-web.zip`
+  - `zt-ui-vYYYY.M.D-linux-amd64.tar.gz`
+  - `checksums.txt`
+- The Linux archive contains the packaged `zt-ui-serve` binary plus the `web/` runtime assets for direct extraction and local serving.
+- The same workflow publishes a multi-arch container image to GitHub Container Registry:
+  - `ghcr.io/<owner>/<repo>:vYYYY.M.D`
+  - `ghcr.io/<owner>/<repo>:latest`
+- The container publish step emits SBOM and provenance metadata through the Docker GitHub Actions pipeline.
 
 ## Public Readiness
 

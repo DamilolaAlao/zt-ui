@@ -1,0 +1,30 @@
+# Version control and editor noise
+.git
+.gitignore
+.github
+.editorconfig
+.idea
+.vscode
+.DS_Store
+
+# Zig build outputs (regenerated inside the image)
+.zig-cache
+zig-cache
+zig-out
+
+# Generated WASM artifact (built fresh by the Dockerfile)
+web/app.wasm
+
+# Docker assets themselves
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.yaml
+
+# Docs and meta files not needed for the build
+docs
+README.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+LICENSE

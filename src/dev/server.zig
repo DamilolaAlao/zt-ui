@@ -1,7 +1,9 @@
 const std = @import("std");
 
 pub const default_port: u16 = 8080;
+pub const default_host: []const u8 = "127.0.0.1";
 pub const web_root = "web";
+pub const health_check_path = "healthz";
 const request_buffer_size = 8 * 1024;
 const stream_buffer_size = 4 * 1024;
 
@@ -11,15 +13,25 @@ pub const RequestTargetError = error{
 };
 
 pub fn main() !void {
-    const args = try std.process.argsAlloc(std.heap.page_allocator);
-    defer std.process.argsFree(std.heap.page_allocator, args);
+    const allocator = std.heap.page_allocator;
 
-    const port = try parsePort(args);
-    const address = try std.net.Address.parseIp("127.0.0.1", port);
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    const port = try resolvePort(args, allocator);
+
+    const host_env = std.process.getEnvVarOwned(allocator, "ZT_UI_HOST") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (host_env) |value| allocator.free(value);
+    const host = if (host_env) |value| value else default_host;
+
+    const address = try std.net.Address.parseIp(host, port);
     var server = try address.listen(.{ .reuse_address = true });
     defer server.deinit();
 
-    std.log.info("serving {s} on http://127.0.0.1:{d}", .{ web_root, port });
+    std.log.info("serving {s} on http://{s}:{d}", .{ web_root, host, port });
 
     var web_dir = try std.fs.cwd().openDir(web_root, .{});
     defer web_dir.close();
@@ -34,17 +46,31 @@ pub fn main() !void {
     }
 }
 
-fn parsePort(args: []const []const u8) !u16 {
-    if (args.len < 2) return default_port;
+fn resolvePort(args: []const []const u8, allocator: std.mem.Allocator) !u16 {
+    if (args.len >= 2) return parsePortValue(args[1]);
 
-    const port = try std.fmt.parseInt(u16, args[1], 10);
+    const port_env = std.process.getEnvVarOwned(allocator, "ZT_UI_PORT") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (port_env) |value| allocator.free(value);
+
+    if (port_env) |value| return parsePortValue(value);
+    return default_port;
+}
+
+fn parsePortValue(raw: []const u8) !u16 {
+    const port = try std.fmt.parseInt(u16, raw, 10);
     if (port == 0) return error.InvalidPort;
     return port;
 }
 
 fn serveConnection(stream: std.net.Stream, web_dir: *std.fs.Dir) !void {
     var request_buf: [request_buffer_size]u8 = undefined;
-    const request = try readRequest(stream, &request_buf);
+    const request = readRequest(stream, &request_buf) catch |err| switch (err) {
+        error.RequestTooLarge => return writeTextResponse(stream, "431 Request Header Fields Too Large", "Request headers exceeded the supported size.\n"),
+        else => return err,
+    };
     if (request.len == 0) return;
 
     const line_end = std.mem.indexOf(u8, request, "\r\n") orelse
@@ -70,6 +96,10 @@ fn serveConnection(stream: std.net.Stream, web_dir: *std.fs.Dir) !void {
     };
 
     std.log.info("{s} /{s}", .{ method, normalized });
+
+    if (std.mem.eql(u8, normalized, health_check_path)) {
+        return writeTextResponse(stream, "200 OK", "ok\n");
+    }
 
     var file = web_dir.openFile(normalized, .{}) catch |err| switch (err) {
         error.FileNotFound => return writeTextResponse(stream, "404 Not Found", "Resource not found.\n"),
@@ -102,14 +132,22 @@ fn readRequest(stream: std.net.Stream, buffer: []u8) ![]const u8 {
             break;
         }
     }
+
+    if (used == buffer.len and
+        std.mem.indexOf(u8, buffer, "\r\n\r\n") == null and
+        std.mem.indexOf(u8, buffer, "\n\n") == null)
+    {
+        return error.RequestTooLarge;
+    }
+
     return buffer[0..used];
 }
 
 fn writeHeader(stream: std.net.Stream, status: []const u8, content_type: []const u8, content_length: u64) !void {
-    var header_buf: [512]u8 = undefined;
+    var header_buf: [1024]u8 = undefined;
     const header = try std.fmt.bufPrint(
         &header_buf,
-        "HTTP/1.1 {s}\r\nContent-Type: {s}\r\nContent-Length: {d}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {s}\r\nContent-Type: {s}\r\nContent-Length: {d}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: DENY\r\nContent-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\nConnection: close\r\n\r\n",
         .{ status, content_type, content_length },
     );
     try stream.writeAll(header);
@@ -168,6 +206,12 @@ test "normalize request target defaults root to index" {
     try std.testing.expectEqualStrings("index.html", normalized);
 }
 
+test "normalize request target keeps health check path stable" {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const normalized = try normalizeRequestTarget("/healthz", &buf);
+    try std.testing.expectEqualStrings(health_check_path, normalized);
+}
+
 test "normalize request target strips query and keeps nested files" {
     var buf: [std.fs.max_path_bytes]u8 = undefined;
     const normalized = try normalizeRequestTarget("/assets/app.js?v=1", &buf);
@@ -188,4 +232,12 @@ test "normalize request target rejects traversal" {
 test "content type covers wasm and javascript" {
     try std.testing.expectEqualStrings("application/wasm", contentTypeForPath("app.wasm"));
     try std.testing.expectEqualStrings("text/javascript; charset=utf-8", contentTypeForPath("boot.js"));
+}
+
+test "parse port value rejects zero" {
+    try std.testing.expectError(error.InvalidPort, parsePortValue("0"));
+}
+
+test "parse port value accepts valid port" {
+    try std.testing.expectEqual(@as(u16, 8080), try parsePortValue("8080"));
 }
