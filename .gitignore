@@ -1,0 +1,12 @@
+# Zig build outputs
+.zig-cache/
+zig-cache/
+zig-out/
+
+# Generated WASM artifact
+web/app.wasm
+
+# OS and editor noise
+.DS_Store
+.idea/
+.vscode/
