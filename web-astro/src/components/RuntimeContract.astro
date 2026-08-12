@@ -1,0 +1,32 @@
+<section class="panel">
+  <div class="panel-head">
+    <p class="panel-kicker">Runtime contract</p>
+    <h2>Host → seam → Zig</h2>
+    <p class="panel-copy">
+      Astro is chrome, not the runtime. <code>@zt-ui/stage</code> is the portable seam — input in, command buffers out, Canvas2D paint. Same mount from Next or vanilla.
+    </p>
+  </div>
+
+  <div class="contract-list">
+    <div>
+      <strong>Lifecycle</strong>
+      <p><code>initRuntime</code>, <code>resize</code>, <code>beginFrame</code></p>
+    </div>
+    <div>
+      <strong>Input</strong>
+      <p><code>pointerMove</code>, <code>pointerButton</code>, <code>pointerWheel</code>, <code>keyEvent</code></p>
+    </div>
+    <div>
+      <strong>Buffers</strong>
+      <p><code>getCommandsPtr/Len</code>, <code>getTextPtr/Len</code>, <code>getPointsPtr/Len</code>, <code>memory</code></p>
+    </div>
+    <div>
+      <strong>Stage seam</strong>
+      <p><code>web-stage/</code> · <code>@zt-ui/stage</code> — mount, input fan-in, Canvas2D hot path. Framework-agnostic by design.</p>
+    </div>
+    <div>
+      <strong>Optional shell snapshot</strong>
+      <p><code>getSnapshotPtr/Len</code> when chrome needs a low-frequency mirror of Zig state.</p>
+    </div>
+  </div>
+</section>

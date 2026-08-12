@@ -4,9 +4,8 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const host_target = b.standardTargetOptions(.{});
 
-    const root_module = b.addModule("zt_ui", .{
+    const shared_module = b.addModule("zt_ui", .{
         .root_source_file = b.path("src/main.zig"),
-        .target = host_target,
     });
 
     const tests = b.addTest(.{
@@ -41,7 +40,7 @@ pub fn build(b: *std.Build) void {
         .target = wasm_target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "zt_ui", .module = root_module },
+            .{ .name = "zt_ui", .module = shared_module },
         },
     });
 
@@ -52,7 +51,7 @@ pub fn build(b: *std.Build) void {
     wasm.entry = .disabled;
     wasm.rdynamic = true;
     wasm.export_memory = true;
-    wasm.initial_memory = 524_288;
+    wasm.initial_memory = 2_097_152;
     wasm.max_memory = 4_194_304;
     wasm.stack_size = 65_536;
 
@@ -60,9 +59,10 @@ pub fn build(b: *std.Build) void {
 
     const sync_wasm = b.addUpdateSourceFiles();
     sync_wasm.addCopyFileToSource(wasm.getEmittedBin(), "web/app.wasm");
+    sync_wasm.addCopyFileToSource(wasm.getEmittedBin(), "web-astro/public/wasm/app.wasm");
     b.getInstallStep().dependOn(&sync_wasm.step);
 
-    const wasm_step = b.step("wasm", "Build web/app.wasm for the browser shell");
+    const wasm_step = b.step("wasm", "Build app.wasm and sync into web/ + web-astro hosts");
     wasm_step.dependOn(&sync_wasm.step);
 
     const run_server = b.addRunArtifact(server);

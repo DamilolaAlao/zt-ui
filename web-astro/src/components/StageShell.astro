@@ -1,0 +1,45 @@
+---
+interface Props {
+  title?: string;
+  copy?: string;
+  overlayTitle?: string;
+  overlayCopy?: string;
+}
+
+const {
+  title = "Rendered stage",
+  copy = "Zig owns the immediate-mode stage, command buffers, and interaction. Astro only frames the viewport.",
+  overlayTitle = "Bootstrapping the runtime",
+  overlayCopy = "Once Zig starts submitting commands, the workflow console lights up here.",
+} = Astro.props;
+---
+
+<section class="stage-panel">
+  <div class="panel-head stage-head">
+    <div>
+      <p class="panel-kicker">Viewport</p>
+      <h2>{title}</h2>
+      <p class="panel-copy">{copy}</p>
+    </div>
+    <div class="stage-meta">
+      <span class="chip" data-role="focus-stat">Canvas inactive</span>
+      <span class="chip chip-muted" data-role="viewport-stat">0 × 0 css px</span>
+    </div>
+  </div>
+
+  <div class="canvas-shell">
+    <canvas
+      data-role="dashboard-canvas"
+      tabindex="0"
+      aria-label="Zig immediate mode dashboard canvas"
+    ></canvas>
+
+    <div class="canvas-overlay">
+      <div class="overlay-card">
+        <span class="overlay-label">Frame state</span>
+        <h3 data-role="overlay-title">{overlayTitle}</h3>
+        <p data-role="overlay-copy">{overlayCopy}</p>
+      </div>
+    </div>
+  </div>
+</section>

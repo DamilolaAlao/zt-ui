@@ -20,8 +20,16 @@ App code
 
 `web/`
 
-- Owns browser lifecycle, WASM instantiation, canvas sizing, input forwarding, and frame scheduling.
-- Renders the command list returned by Zig.
+- Zero-dep Canvas2D boot — `boot.js` wires WASM → pixels with no framework tax.
+
+`web-stage/` (`@zt-ui/stage`)
+
+- Portable stage seam: mount, input fan-in, Canvas2D paint, contracts.
+- Drop into Astro, Next.js, or vanilla — chrome is swappable, the seam is not.
+
+`web-astro/`
+
+- Astro chrome surface over `@zt-ui/stage` — demo host, not a private bridge fork.
 
 `src/dev`
 

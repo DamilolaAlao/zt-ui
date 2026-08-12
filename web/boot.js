@@ -59,6 +59,8 @@ function listModuleItems(target, items, emptyLabel) {
 function keyCodeForEvent(event) {
   if (event.code === "Backquote") return 192;
   if (event.code === "KeyG") return 71;
+  if (event.code === "Space") return 32;
+  if (event.code === "ArrowUp") return 38;
   if (event.key && event.key.length === 1) {
     return event.key.toUpperCase().charCodeAt(0);
   }
@@ -120,6 +122,7 @@ function bindInput() {
   window.addEventListener("keydown", (event) => {
     const code = keyCodeForEvent(event);
     if (code != null) {
+      if (code === 32 || code === 38) event.preventDefault();
       runtime.exports?.keyEvent?.(code, true);
     }
   });

@@ -15,7 +15,7 @@ pub const AppRuntime = struct {
     clock: FrameClock = .{},
     renderer: Renderer = Renderer.init(),
     ui: ui_runtime.UI = undefined,
-    state: state_mod.DashboardState = state_mod.DashboardState.init(),
+    state: state_mod.DashboardState = undefined,
     overlay: overlay.OverlayState = .{},
     profiler: profiler.FrameProfiler = .{},
 
@@ -30,7 +30,8 @@ pub const AppRuntime = struct {
         self.renderer.frame.text_len = 0;
         self.renderer.frame.points_len = 0;
 
-        self.state = state_mod.DashboardState.init();
+        self.state = undefined;
+        self.state.init();
         self.overlay = .{};
         self.profiler = .{};
         self.ui = ui_runtime.UI.init(&self.renderer, &self.input);

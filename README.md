@@ -27,7 +27,9 @@ That architecture maps directly to the source tree:
 | `src/ui`       | Stable widget ids, stack layout, clipping helpers, theme, and immediate-mode widgets.                              |
 | `src/app`      | The reference app: state, panel geometry, charts, and dashboard composition.                                       |
 | `src/debug`    | Overlay and frame metrics for developer-facing runtime inspection.                                                 |
-| `web/`         | The browser host, runtime boot sequence, and a Canvas2D renderer living behind the future-facing `webgpu.js` seam. |
+| `web/`         | Zero-dep Canvas2D boot — `boot.js` wires WASM → pixels with no framework tax. |
+| `web-stage/` | `@zt-ui/stage` — portable seam: mount, input, paint, contracts for any host. |
+| `web-astro/`   | Astro chrome surface over `@zt-ui/stage` — same API, Next/vanilla-ready. |
 
 ## What This Repo Optimizes For
 
@@ -48,6 +50,7 @@ src/
   dev/
     server.zig
   platform/
+    audio_events.zig
     wasm.zig
     input.zig
     time.zig
@@ -65,6 +68,8 @@ src/
     clip.zig
     theme.zig
   app/
+    audio_sequence_panel.zig
+    audio_sequence_state.zig
     dashboard.zig
     charts.zig
     panels.zig
@@ -76,6 +81,25 @@ web/
   index.html
   boot.js
   webgpu.js
+web-stage/
+  package.json
+  src/
+    index.ts
+    mount.ts
+    runtime.ts
+    renderer.ts
+  examples/
+    next-stage-host.tsx
+    vanilla-mount.ts
+web-astro/
+  package.json
+  astro.config.mjs
+  public/
+    wasm/
+      app.wasm
+  src/
+    pages/
+    components/
 ```
 
 ## Current Status
@@ -86,7 +110,8 @@ Already real:
 - `zig build test` exercises the shared Zig module tree locally.
 - The runtime exports a browser-oriented surface for resize, frame stepping, input events, and frame-buffer access.
 - The browser host forwards CSS-pixel input and draws the returned command list onto a canvas.
-- The reference app renders an immediate-mode workflow console with metrics, charting, logs, and a debug overlay.
+- The reference app renders an immediate-mode workflow console with metrics, charting, logs, an LLM audio sequence panel, and a debug overlay.
+- `@zt-ui/stage` (`web-stage/`) is the shared stage seam; `web-astro/` is one chrome host over it.
 
 Still intentionally conservative:
 
@@ -104,7 +129,7 @@ Still intentionally conservative:
 
 ## Build And Run
 
-Requires Zig `0.15.2` or newer.
+Requires Zig `0.16.0` or newer.
 
 ```sh
 zig build
@@ -120,6 +145,41 @@ Then open `http://127.0.0.1:8080`.
 Use `zig build serve -- 8091` if you want a different local port.
 Set `ZT_UI_HOST=0.0.0.0` if you need the dev server to bind beyond loopback (it defaults to `127.0.0.1`).
 Set `ZT_UI_PORT=8091` if you want to override the default port without a CLI argument.
+
+## Stage Seam + Astro Host
+
+Shared stage package:
+
+```sh
+# package lives at web-stage/ (@zt-ui/stage)
+```
+
+Astro chrome demo:
+
+```sh
+zig build wasm
+cd web-astro
+npm install
+npm run dev
+```
+
+`zig build wasm` syncs the module into both `web/app.wasm` and `web-astro/public/wasm/app.wasm`.
+Next.js and vanilla hosts use the same `@zt-ui/stage` API — see [docs/web-stage.md](./docs/web-stage.md).
+
+## Desktop App (macOS)
+
+The repository also includes a native macOS wrapper that launches the bundled
+`zt-ui-serve` binary and loads the existing stage into a `WKWebView`.
+
+From the repo root:
+
+```sh
+./scripts/build-macos-app.sh
+open "dist/macos-app/zt-ui Desktop.app"
+```
+
+This path builds the current local-platform app bundle with the Swift command
+line tools and does not require Xcode project generation.
 
 ## Docker
 
@@ -152,6 +212,9 @@ Then open `http://127.0.0.1:8080`.
 ## Documentation
 
 - [docs/architecture.md](./docs/architecture.md) explains the runtime layers and ownership boundaries.
+- [docs/web-stage.md](./docs/web-stage.md) documents `@zt-ui/stage` and multi-host mounting (Astro / Next / vanilla).
+- [docs/astro-host.md](./docs/astro-host.md) points at the Astro chrome demo over the stage seam.
+- [docs/audio-sequences.md](./docs/audio-sequences.md) documents the plain-data voice interaction model and reference dashboard panel.
 - [docs/testing.md](./docs/testing.md) documents the test-first workflow and the seams worth protecting.
 - [docs/release.md](./docs/release.md) provides a pre-publication release checklist.
 - [CONTRIBUTING.md](./CONTRIBUTING.md) covers contribution expectations.

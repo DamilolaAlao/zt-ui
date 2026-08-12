@@ -1,0 +1,61 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+import StageShell from "../components/StageShell.astro";
+import RuntimeDiagnostics from "../components/RuntimeDiagnostics.astro";
+import RuntimeContract from "../components/RuntimeContract.astro";
+---
+
+<AppLayout
+  title="zt-ui · Astro Host"
+  description="Astro chrome over the shared @zt-ui/stage stage seam."
+>
+  <div class="shell">
+    <header class="masthead">
+      <div class="masthead-copy">
+        <p class="eyebrow-line">Portable seam · @zt-ui/stage</p>
+        <h1 class="brand-hero">zt-<em>ui</em></h1>
+        <p class="lede">
+          Zig owns the stage. The seam owns the hot path — mount, input, paint.
+          Astro is chrome. Swap it for Next or vanilla; the seam stays put.
+          <span class="lede-path"><code>/wasm/app.wasm</code></span>
+        </p>
+      </div>
+
+      <div class="masthead-status">
+        <div class="status-row">
+          <span class="status-label">Chrome</span>
+          <strong>Astro surface — swappable</strong>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Seam</span>
+          <strong>@zt-ui/stage · mount → paint</strong>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Stage</span>
+          <strong>Zig WASM · command buffers</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace" data-zt-stage-root>
+      <StageShell />
+
+      <aside class="sidebar">
+        <RuntimeDiagnostics />
+        <RuntimeContract />
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    import { mountStage } from "@zt-ui/stage";
+
+    const root = document.querySelector("[data-zt-stage-root]");
+    if (root instanceof HTMLElement) {
+      void mountStage(root, {
+        wasmUrl: "/wasm/app.wasm",
+        hostLabel: "Astro host",
+      });
+    }
+  </script>
+</AppLayout>

@@ -1,4 +1,6 @@
 const std = @import("std");
+const audio_state = @import("audio_sequence_state.zig");
+const dino_state = @import("dino_state.zig");
 
 pub const sample_count = 96;
 
@@ -33,11 +35,14 @@ pub const DashboardState = struct {
     benchmark_p95_ms: f32 = 112.0,
     samples: [sample_count]f32 = undefined,
     logs: [default_logs.len]LogEntry = default_logs,
+    audio: audio_state.AudioDemoState = undefined,
+    dino: dino_state.DinoState = undefined,
 
-    pub fn init() DashboardState {
-        var state = DashboardState{};
-        state.seedSamples();
-        return state;
+    pub fn init(self: *DashboardState) void {
+        self.* = .{};
+        self.seedSamples();
+        self.audio.init();
+        self.dino.init();
     }
 
     fn seedSamples(self: *DashboardState) void {
@@ -51,6 +56,8 @@ pub const DashboardState = struct {
 
     pub fn tick(self: *DashboardState, dt: f32) void {
         self.elapsed += dt;
+        self.audio.tick(dt, self.streaming_paused);
+        self.dino.tick(dt);
         if (self.streaming_paused) return;
 
         self.stream_accumulator += dt;
@@ -81,11 +88,14 @@ pub const DashboardState = struct {
         self.active_workflows = 12;
         self.benchmarks_today = 84;
         self.seedSamples();
+        self.audio.reset();
+        self.dino.resetRun();
     }
 };
 
 test "tick advances the live sample window" {
-    var state = DashboardState.init();
+    var state: DashboardState = undefined;
+    state.init();
     const before = state.samples[state.samples.len - 1];
     state.tick(0.2);
     try std.testing.expect(before != state.samples[state.samples.len - 1]);

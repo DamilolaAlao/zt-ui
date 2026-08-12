@@ -1,13 +1,13 @@
 # zt-ui Docker image.
 #
-# Multi-stage build: stage 1 fetches Zig 0.15.2, builds the WASM artifact and
+# Multi-stage build: stage 1 fetches Zig 0.16.0, builds the WASM artifact and
 # the dev server. Stage 2 is a slim runtime image that serves web/ on
 # 0.0.0.0:8080 with the in-tree Zig HTTP server.
 #
 # Multi-arch: works for linux/amd64 and linux/arm64 via TARGETARCH (set
 # automatically by `docker buildx`).
 
-ARG ZIG_VERSION=0.15.2
+ARG ZIG_VERSION=0.16.0
 ARG DEBIAN_VERSION=bookworm-slim
 
 # ---------- builder ----------
@@ -27,8 +27,8 @@ RUN apt-get update \
 # Map Docker's TARGETARCH to Zig's release naming and pin sha256 per arch.
 RUN set -eux; \
     case "${TARGETARCH}" in \
-        amd64) ZIG_ARCH="x86_64";  ZIG_SHA256="02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239" ;; \
-        arm64) ZIG_ARCH="aarch64"; ZIG_SHA256="958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f" ;; \
+        amd64) ZIG_ARCH="x86_64";  ZIG_SHA256="70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00" ;; \
+        arm64) ZIG_ARCH="aarch64"; ZIG_SHA256="ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17" ;; \
         *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     ZIG_DIR="zig-${ZIG_ARCH}-linux-${ZIG_VERSION}"; \

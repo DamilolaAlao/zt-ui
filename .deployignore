@@ -1,0 +1,6 @@
+web-astro/node_modules/
+web-astro/dist/
+.zig-cache/
+zig-out/
+dist/
+node_modules/

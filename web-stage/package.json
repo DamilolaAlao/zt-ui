@@ -1,0 +1,22 @@
+{
+  "name": "@zt-ui/stage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable Zig/WASM stage seam for zt-ui hosts (Astro, Next.js, vanilla).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts.ts",
+    "./roles": "./src/roles.ts"
+  },
+  "files": [
+    "src",
+    "examples",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

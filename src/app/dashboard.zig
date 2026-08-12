@@ -2,6 +2,8 @@ const std = @import("std");
 const commands = @import("../gfx/commands.zig");
 const ui_runtime = @import("../ui/ui.zig");
 const state_mod = @import("state.zig");
+const audio_panel = @import("audio_sequence_panel.zig");
+const dino_panel = @import("dino_panel.zig");
 const panels = @import("panels.zig");
 const charts = @import("charts.zig");
 
@@ -11,6 +13,10 @@ pub fn draw(ui: *ui_runtime.UI, state: *state_mod.DashboardState, viewport: comm
     try drawSidebar(ui, state, frame.sidebar);
     try drawHeader(ui, state, frame.header);
     try drawMetrics(ui, state, frame.metrics);
+
+    try dino_panel.draw(ui, &state.dino, frame.dino);
+
+    try audio_panel.draw(ui, &state.audio, frame.audio);
 
     try ui.beginPanel("Pipeline Throughput", frame.chart);
     const chart_rect = ui.takeRemaining();
@@ -24,10 +30,19 @@ pub fn draw(ui: *ui_runtime.UI, state: *state_mod.DashboardState, viewport: comm
 
 fn drawSidebar(ui: *ui_runtime.UI, state: *state_mod.DashboardState, rect: commands.Rect) !void {
     try ui.beginPanel("Field Systems", rect);
-    try ui.text("Workflow benchmarks and throughput panels");
-    try ui.text("Operational queues, charts, and live scroll regions");
-    try ui.text("Test-first seams and explicit runtime boundaries");
+    try ui.text("Agentic Dino ported from devrel into Zig WASM");
+    try ui.text("Space/Up flap · click aim · A autopilot · R retry");
+    try ui.text("Local vision motor; command-buffered Canvas2D");
 
+    if (try ui.button(if (state.dino.running and !state.dino.dead) "Dino running" else "Start dino")) {
+        state.dino.flap(true);
+    }
+    if (try ui.button(if (state.dino.autopilot) "Autopilot: ON" else "Autopilot: OFF")) {
+        state.dino.autopilot = !state.dino.autopilot;
+    }
+    if (try ui.button("Retry run")) {
+        state.dino.resetRun();
+    }
     if (try ui.button(if (state.sidebar_open) "Collapse sidebar" else "Expand sidebar")) {
         state.sidebar_open = !state.sidebar_open;
     }
@@ -48,31 +63,39 @@ fn drawSidebar(ui: *ui_runtime.UI, state: *state_mod.DashboardState, rect: comma
 }
 
 fn drawHeader(ui: *ui_runtime.UI, state: *state_mod.DashboardState, rect: commands.Rect) !void {
-    try ui.beginPanel("Workflow Benchmark Console", rect);
-    try ui.text("Benchmarks, pipeline throughput, and workflow queues in one immediate-mode frame.");
-    try ui.text("Canvas-backed JS today, explicit command buffers ready for a future WebGPU backend.");
+    try ui.beginPanel("zt-ui · Agentic Dino Console", rect);
+    try ui.text("devrel Flappy/dino physics in Zig — plain data, immediate-mode draw, WASM host.");
 
-    var benchmarks_buf: [64]u8 = undefined;
-    const benchmarks = try std.fmt.bufPrint(&benchmarks_buf, "Benchmarks today: {d}", .{state.benchmarks_today});
-    try ui.text(benchmarks);
+    var score_buf: [80]u8 = undefined;
+    const score_line = try std.fmt.bufPrint(
+        &score_buf,
+        "Dino HI {d} · score {d} · pipes {d} · {s}",
+        .{
+            @as(u32, @intFromFloat(state.dino.hi)),
+            @as(u32, @intFromFloat(state.dino.score)),
+            state.dino.pipes_cleared,
+            if (state.dino.autopilot) "autopilot" else "manual",
+        },
+    );
+    try ui.text(score_line);
 
     try ui.text(if (state.streaming_paused) "Feed state: paused" else "Feed state: live");
     ui.endPanel();
 }
 
 fn drawMetrics(ui: *ui_runtime.UI, state: *state_mod.DashboardState, rects: [3]commands.Rect) !void {
-    var workflows_buf: [24]u8 = undefined;
-    const workflows = try std.fmt.bufPrint(&workflows_buf, "{d}", .{state.active_workflows});
+    var score_buf: [24]u8 = undefined;
+    const score = try std.fmt.bufPrint(&score_buf, "{d}", .{@as(u32, @intFromFloat(state.dino.score))});
 
-    var throughput_buf: [32]u8 = undefined;
-    const throughput = try std.fmt.bufPrint(&throughput_buf, "{d:.0} / hr", .{state.pipeline_throughput_per_hour});
+    var pipes_buf: [24]u8 = undefined;
+    const pipes = try std.fmt.bufPrint(&pipes_buf, "{d}", .{state.dino.pipes_cleared});
 
-    var latency_buf: [32]u8 = undefined;
-    const latency = try std.fmt.bufPrint(&latency_buf, "{d:.1} ms", .{state.benchmark_p95_ms});
+    var speed_buf: [32]u8 = undefined;
+    const speed = try std.fmt.bufPrint(&speed_buf, "{d:.1}x", .{state.dino.speed / 2.8});
 
-    try ui.metricAt("Active workflows", workflows, rects[0], ui.theme.colors.accent);
-    try ui.metricAt("Pipeline throughput", throughput, rects[1], ui.theme.colors.success);
-    try ui.metricAt("Benchmark p95", latency, rects[2], ui.theme.colors.warning);
+    try ui.metricAt("Dino score", score, rects[0], ui.theme.colors.accent);
+    try ui.metricAt("Pipes cleared", pipes, rects[1], ui.theme.colors.success);
+    try ui.metricAt("Scroll speed", speed, rects[2], ui.theme.colors.warning);
 }
 
 fn drawLogs(ui: *ui_runtime.UI, state: *state_mod.DashboardState) !void {

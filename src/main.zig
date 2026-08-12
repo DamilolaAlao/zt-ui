@@ -1,6 +1,7 @@
 pub const AppRuntime = @import("app.zig").AppRuntime;
 
 pub const platform = struct {
+    pub const audio_events = @import("platform/audio_events.zig");
     pub const input = @import("platform/input.zig");
     pub const time = @import("platform/time.zig");
 };
@@ -23,8 +24,12 @@ pub const ui = struct {
 };
 
 pub const app = struct {
+    pub const audio_sequence_panel = @import("app/audio_sequence_panel.zig");
+    pub const audio_sequence_state = @import("app/audio_sequence_state.zig");
     pub const charts = @import("app/charts.zig");
     pub const dashboard = @import("app/dashboard.zig");
+    pub const dino_panel = @import("app/dino_panel.zig");
+    pub const dino_state = @import("app/dino_state.zig");
     pub const panels = @import("app/panels.zig");
     pub const state = @import("app/state.zig");
 };
@@ -41,10 +46,15 @@ pub const dev = struct {
 test {
     _ = @import("app.zig");
     _ = @import("dev/server.zig");
+    _ = @import("platform/audio_events.zig");
     _ = @import("platform/input.zig");
     _ = @import("platform/time.zig");
     _ = @import("gfx/renderer.zig");
     _ = @import("ui/ui.zig");
+    _ = @import("app/audio_sequence_panel.zig");
+    _ = @import("app/audio_sequence_state.zig");
     _ = @import("app/dashboard.zig");
+    _ = @import("app/dino_panel.zig");
+    _ = @import("app/dino_state.zig");
     _ = @import("debug/overlay.zig");
 }
