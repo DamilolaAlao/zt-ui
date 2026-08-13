@@ -1,0 +1,76 @@
+# Ternary Bonsai host example for zt-ui.
+#
+# Services:
+#   zt-ui   — Zig/WASM dashboard (8080)
+#   llama   — PrismML Ternary-Bonsai-1.7B via llama-server (8081)
+#   bridge  — AudioEvent producer + demo host (8090)
+#
+# First boot downloads ~442 MB GGUF into the models volume.
+
+name: zt-ui-ternary-bonsai
+
+services:
+  zt-ui:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: zt-ui:local
+    ports:
+      - "8080:8080"
+    environment:
+      ZT_UI_HOST: 0.0.0.0
+      ZT_UI_PORT: "8080"
+    restart: unless-stopped
+
+  llama:
+    build:
+      context: .
+      dockerfile: Dockerfile.llama
+    image: zt-ui-ternary-bonsai-llama:local
+    ports:
+      - "8081:8080"
+    environment:
+      MODELS_DIR: /models
+      MODEL_FILE: Ternary-Bonsai-1.7B-Q2_0.gguf
+      LLAMA_HOST: 0.0.0.0
+      LLAMA_PORT: "8080"
+      LLAMA_CTX: "2048"
+      LLAMA_NGL: "0"
+      LLAMA_THREADS: "4"
+    volumes:
+      - bonsai-models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 240s
+    restart: unless-stopped
+
+  bridge:
+    build:
+      context: ./bridge
+      dockerfile: Dockerfile
+    image: zt-ui-ternary-bonsai-bridge:local
+    ports:
+      - "8090:8090"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8090"
+      LLAMA_URL: http://llama:8080
+      ZT_UI_URL: http://127.0.0.1:8080
+    depends_on:
+      llama:
+        condition: service_started
+      zt-ui:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  bonsai-models:

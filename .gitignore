@@ -26,3 +26,8 @@ web-astro/.astro/
 # Local Zerops project imports / deploy recipes
 zerops.yml
 zerops-import-*.yml
+
+# Ternary Bonsai example model cache / bridge deps
+examples/ternary-bonsai/models/**
+!examples/ternary-bonsai/models/.gitkeep
+examples/ternary-bonsai/bridge/node_modules/

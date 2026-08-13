@@ -100,6 +100,8 @@ web-astro/
   src/
     pages/
     components/
+examples/
+  ternary-bonsai/   # Docker: Ternary-Bonsai-1.7B + AudioEvent bridge + zt-ui
 ```
 
 ## Current Status
@@ -181,6 +183,15 @@ open "dist/macos-app/zt-ui Desktop.app"
 This path builds the current local-platform app bundle with the Swift command
 line tools and does not require Xcode project generation.
 
+For the Ternary Bonsai host example (MLX on Apple Silicon + AudioEvent bridge + zt-ui):
+
+```sh
+./examples/ternary-bonsai/scripts/build-macos-app.sh
+open "dist/macos-ternary-bonsai/zt-ui Ternary Bonsai.app"
+```
+
+See [examples/ternary-bonsai/README.md](./examples/ternary-bonsai/README.md).
+
 ## Docker
 
 A multi-stage [`Dockerfile`](./Dockerfile) builds the WASM artifact and the in-tree Zig dev server, then ships them in a slim runtime image that listens on `0.0.0.0:8080`.
@@ -215,6 +226,7 @@ Then open `http://127.0.0.1:8080`.
 - [docs/web-stage.md](./docs/web-stage.md) documents `@zt-ui/stage` and multi-host mounting (Astro / Next / vanilla).
 - [docs/astro-host.md](./docs/astro-host.md) points at the Astro chrome demo over the stage seam.
 - [docs/audio-sequences.md](./docs/audio-sequences.md) documents the plain-data voice interaction model and reference dashboard panel.
+- [examples/ternary-bonsai](./examples/ternary-bonsai) runs PrismML Ternary-Bonsai-1.7B in Docker and streams host-side `AudioEvent`s.
 - [docs/testing.md](./docs/testing.md) documents the test-first workflow and the seams worth protecting.
 - [docs/release.md](./docs/release.md) provides a pre-publication release checklist.
 - [CONTRIBUTING.md](./CONTRIBUTING.md) covers contribution expectations.

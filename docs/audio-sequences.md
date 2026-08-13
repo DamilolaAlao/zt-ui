@@ -88,9 +88,22 @@ The reference app now supports two demo modes:
 
 Those events are the seam between browser-owned capture/playback concerns and Zig-owned dashboard state.
 
+## Host example: Ternary Bonsai
+
+[`examples/ternary-bonsai`](../examples/ternary-bonsai) is a Docker Compose stack that keeps inference outside Zig:
+
+- PrismML **Ternary-Bonsai-1.7B** (GGUF Q2_0) via PrismML `llama-server`
+- A Node bridge that emits the `AudioEvent` payloads above over WebSocket
+- The existing zt-ui dashboard alongside the bridge demo UI
+
+```sh
+cd examples/ternary-bonsai
+docker compose up --build
+```
+
 ## Next Milestones
 
 1. Add a selected-segment metadata pane with richer payload formatting and optional JSON snapshots.
 2. Add interruption markers, richer input-level metering, and playback error surfacing in the canvas stage.
-3. Wire a browser-side WebSocket feed into the normalized `AudioEvent` contract.
+3. Wire a browser-side WebSocket feed into the normalized `AudioEvent` contract (consume the ternary-bonsai bridge).
 4. Add coarse DOM-facing state snapshots for non-canvas shells when needed.

@@ -1,0 +1,60 @@
+# PrismML Ternary-Bonsai llama-server (CPU).
+#
+# Q2_0 ternary GGUF needs the PrismML llama.cpp fork, not mainline.
+# Prebuilt Ubuntu CPU binaries are pulled from their GitHub Releases.
+# Those builds need glibc ≥ 2.38, so the runtime base is Ubuntu 24.04.
+
+ARG UBUNTU_VERSION=24.04
+ARG LLAMA_RELEASE=prism-b9596-9fcaed7
+
+FROM ubuntu:${UBUNTU_VERSION} AS runtime
+
+ARG LLAMA_RELEASE
+ARG TARGETARCH
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) ARCH_TAG="x64" ;; \
+        arm64) ARCH_TAG="arm64" ;; \
+        *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    ASSET="llama-${LLAMA_RELEASE}-bin-ubuntu-${ARCH_TAG}.tar.gz"; \
+    URL="https://github.com/PrismML-Eng/llama.cpp/releases/download/${LLAMA_RELEASE}/${ASSET}"; \
+    mkdir -p /opt/llama /tmp/llama-bin; \
+    curl -fsSL -o /tmp/llama.tgz "${URL}"; \
+    tar -xzf /tmp/llama.tgz -C /tmp/llama-bin; \
+    # Release layout: llama-<tag>/{llama-server, lib*.so*}
+    BIN_DIR="$(find /tmp/llama-bin -type f -name 'llama-server' -exec dirname {} \; | head -n 1)"; \
+    test -n "${BIN_DIR}"; \
+    cp -a "${BIN_DIR}/." /opt/llama/; \
+    chmod +x /opt/llama/llama-server; \
+    test -e /opt/llama/libllama-common.so.0; \
+    rm -rf /tmp/llama.tgz /tmp/llama-bin; \
+    LD_LIBRARY_PATH=/opt/llama /opt/llama/llama-server --version
+
+COPY scripts/download-model.sh /usr/local/bin/download-model.sh
+COPY scripts/entrypoint-llama.sh /usr/local/bin/entrypoint-llama.sh
+RUN chmod +x /usr/local/bin/download-model.sh /usr/local/bin/entrypoint-llama.sh \
+    && mkdir -p /models
+
+ENV MODELS_DIR=/models \
+    MODEL_FILE=Ternary-Bonsai-1.7B-Q2_0.gguf \
+    LLAMA_HOST=0.0.0.0 \
+    LLAMA_PORT=8080 \
+    LLAMA_CTX=2048 \
+    LLAMA_NGL=0 \
+    LD_LIBRARY_PATH=/opt/llama
+
+EXPOSE 8080
+VOLUME ["/models"]
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-llama.sh"]

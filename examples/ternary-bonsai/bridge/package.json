@@ -1,0 +1,16 @@
+{
+  "name": "@zt-ui/ternary-bonsai-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Host-side AudioEvent bridge for PrismML Ternary Bonsai → zt-ui",
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

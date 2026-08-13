@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>zt-ui · Ternary Bonsai bridge</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="kicker">examples/ternary-bonsai</p>
+        <h1>Ternary Bonsai → AudioEvent</h1>
+        <p class="lede">
+          Host-side PrismML Ternary-Bonsai-1.7B streams into the same
+          <code>AudioEvent</code> contract Zig already consumes. Inference stays
+          outside <code>app.wasm</code>.
+        </p>
+        <p class="meta">
+          <a id="zt-link" href="http://127.0.0.1:8080" target="_blank" rel="noreferrer">Open zt-ui dashboard</a>
+          <span id="status" data-state="booting">booting</span>
+        </p>
+      </header>
+
+      <section class="composer" aria-label="Prompt">
+        <label for="prompt">Ops prompt</label>
+        <textarea id="prompt" rows="3">Show me the latest error spike on the API gateway.</textarea>
+        <div class="row">
+          <label class="check">
+            <input id="with-tool" type="checkbox" checked />
+            Emit metrics.query tool segment
+          </label>
+          <button id="run" type="button">Run sequence</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article>
+          <h2>Live AudioEvent stream</h2>
+          <ol id="events" class="events"></ol>
+        </article>
+        <article>
+          <h2>Assistant text</h2>
+          <pre id="assistant" class="assistant">Waiting for Ternary Bonsai…</pre>
+          <dl id="metrics" class="metrics"></dl>
+        </article>
+      </section>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
