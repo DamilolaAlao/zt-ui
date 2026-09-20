@@ -1,60 +1,71 @@
-pub const AppRuntime = @import("app.zig").AppRuntime;
+const std = @import("std");
+const Io = std.Io;
 
-pub const platform = struct {
-    pub const audio_events = @import("platform/audio_events.zig");
-    pub const input = @import("platform/input.zig");
-    pub const time = @import("platform/time.zig");
-};
+const zt_ui = @import("zt_ui");
 
-pub const gfx = struct {
-    pub const atlas = @import("gfx/atlas.zig");
-    pub const color = @import("gfx/color.zig");
-    pub const commands = @import("gfx/commands.zig");
-    pub const renderer = @import("gfx/renderer.zig");
-    pub const text = @import("gfx/text.zig");
-};
+pub fn main(init: std.process.Init) !void {
+    // Prints to stderr, unbuffered, ignoring potential errors.
+    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
-pub const ui = struct {
-    pub const clip = @import("ui/clip.zig");
-    pub const id = @import("ui/id.zig");
-    pub const layout = @import("ui/layout.zig");
-    pub const theme = @import("ui/theme.zig");
-    pub const widgets = @import("ui/widgets.zig");
-    pub const runtime = @import("ui/ui.zig");
-};
+    // This is appropriate for anything that lives as long as the process.
+    const arena: std.mem.Allocator = init.arena.allocator();
 
-pub const app = struct {
-    pub const audio_sequence_panel = @import("app/audio_sequence_panel.zig");
-    pub const audio_sequence_state = @import("app/audio_sequence_state.zig");
-    pub const charts = @import("app/charts.zig");
-    pub const dashboard = @import("app/dashboard.zig");
-    pub const dino_panel = @import("app/dino_panel.zig");
-    pub const dino_state = @import("app/dino_state.zig");
-    pub const panels = @import("app/panels.zig");
-    pub const state = @import("app/state.zig");
-};
+    // Accessing command line arguments:
+    const args = try init.minimal.args.toSlice(arena);
+    for (args) |arg| {
+        std.log.info("arg: {s}", .{arg});
+    }
 
-pub const debug = struct {
-    pub const overlay = @import("debug/overlay.zig");
-    pub const profiler = @import("debug/profiler.zig");
-};
+    // In order to do I/O operations need an `Io` instance.
+    const io = init.io;
 
-pub const dev = struct {
-    pub const server = @import("dev/server.zig");
-};
+    // Stdout is for the actual output of your application, for example if you
+    // are implementing gzip, then only the compressed bytes should be sent to
+    // stdout, not any debugging messages.
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
+    const stdout_writer = &stdout_file_writer.interface;
 
-test {
-    _ = @import("app.zig");
-    _ = @import("dev/server.zig");
-    _ = @import("platform/audio_events.zig");
-    _ = @import("platform/input.zig");
-    _ = @import("platform/time.zig");
-    _ = @import("gfx/renderer.zig");
-    _ = @import("ui/ui.zig");
-    _ = @import("app/audio_sequence_panel.zig");
-    _ = @import("app/audio_sequence_state.zig");
-    _ = @import("app/dashboard.zig");
-    _ = @import("app/dino_panel.zig");
-    _ = @import("app/dino_state.zig");
-    _ = @import("debug/overlay.zig");
+    try zt_ui.printAnotherMessage(stdout_writer);
+
+    try stdout_writer.flush(); // Don't forget to flush!
+}
+
+test "simple test" {
+    const gpa = std.testing.allocator;
+    var list: std.ArrayList(i32) = .empty;
+    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
+    try list.append(gpa, 42);
+    try std.testing.expectEqual(@as(i32, 42), list.pop());
+}
+
+test "fuzz example" {
+    try std.testing.fuzz({}, testOne, .{});
+}
+
+fn testOne(context: void, smith: *std.testing.Smith) !void {
+    _ = context;
+    // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
+
+    const gpa = std.testing.allocator;
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(gpa);
+    while (!smith.eos()) switch (smith.value(enum { add_data, dup_data })) {
+        .add_data => {
+            const slice = try list.addManyAsSlice(gpa, smith.value(u4));
+            smith.bytes(slice);
+        },
+        .dup_data => {
+            if (list.items.len == 0) continue;
+            if (list.items.len > std.math.maxInt(u32)) return error.SkipZigTest;
+            const len = smith.valueRangeAtMost(u32, 1, @min(32, list.items.len));
+            const off = smith.valueRangeAtMost(u32, 0, @intCast(list.items.len - len));
+            try list.appendSlice(gpa, list.items[off..][0..len]);
+            try std.testing.expectEqualSlices(
+                u8,
+                list.items[off..][0..len],
+                list.items[list.items.len - len ..],
+            );
+        },
+    };
 }
