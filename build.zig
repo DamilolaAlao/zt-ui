@@ -1,18 +1,26 @@
-// Standard target options allow the person running `zig build` to choose
-// what target to build for. Here we do not override the defaults, which
-// means any target is allowed, and the default is native. Other options
-// for restricting supported target set are available.
-// Define platforms for cross-compilation support
-const platforms = b.standardTargetOptions(.{
-    .platforms = ["linux", "windows", "darwin"],
-});
-const target = platforms.target;
-const optimize = b.standardOptimizeOption(.{});
-const mod = b.addModule("zt_ui", {
-    .root_source_file = b.path("src/root.zig"),
-    .target = target,
-});
-const server = b.build("zt_ui", {
-    target,
-    name = "zt_ui",
-});
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const zt_ui = b.addModule("zt_ui", .{
+        .root_source_file = b.path("src/app.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const lib = b.addStaticLibrary(.{
+        .name = "zt_ui",
+        .root_module = zt_ui,
+    });
+    b.installArtifact(lib);
+
+    const tests = b.addTest(.{
+        .root_module = zt_ui,
+    });
+
+    const run_tests = b.addRunArtifact(tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_tests.step);
+}
