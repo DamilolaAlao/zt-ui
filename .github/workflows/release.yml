@@ -129,6 +129,13 @@ jobs:
           security default-keychain -s "$KEYCHAIN_PATH"
           security find-identity -v -p codesigning
           security find-identity -v -p codesigning | grep -F "$APPLE_SIGNING_IDENTITY"
+          case "$APPLE_SIGNING_IDENTITY" in
+            "Developer ID Application:"*) ;;
+            *)
+              echo "::error::APPLE_SIGNING_IDENTITY must be a Developer ID Application certificate. Apple Distribution is for the Mac App Store and cannot be notarized."
+              exit 1
+              ;;
+          esac
 
       - name: Build universal macOS app
         env:
@@ -154,10 +161,20 @@ jobs:
           fi
           APP="dist/macos-app/zt-ui Desktop.app"
           ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/zt-ui-notarize.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/zt-ui-notarize.zip" --wait \
+          xcrun notarytool submit "$RUNNER_TEMP/zt-ui-notarize.zip" --wait --output-format json \
             --key "$KEY_PATH" \
             --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER"
+            --issuer "$APPLE_API_ISSUER" > "$RUNNER_TEMP/notarize-result.json"
+          SUBMISSION_ID="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/notarize-result.json")"
+          STATUS="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/notarize-result.json")"
+          if [[ "$STATUS" != "Accepted" ]]; then
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --key "$KEY_PATH" \
+              --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER" || true
+            echo "::error::Notarization status is ${STATUS} for ${SUBMISSION_ID}"
+            exit 1
+          fi
           xcrun stapler staple "$APP"
           rm -f "$ZT_UI_MACOS_ZIP"
           ditto -c -k --keepParent "$APP" "$ZT_UI_MACOS_ZIP"
