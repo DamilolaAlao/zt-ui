@@ -222,6 +222,7 @@ export function createStageRuntime(
     setText(elements.importStat, `${imports.length} imports`);
 
     resizeRuntime();
+    connectAudioEvents(options.audioEventsUrl);
     publishStatus("Runtime ready");
     setText(elements.backendBadge, "Canvas2D reference");
     setOverlay(
@@ -230,6 +231,29 @@ export function createStageRuntime(
       `${hostLabel} is live. Zig command buffers are now driving the stage.`,
     );
     logDiagnostic(elements.diagnostics, "Runtime loaded successfully.");
+  }
+
+  function connectAudioEvents(url: string | undefined) {
+    if (!url || !exportsRef || !memoryRef) return;
+    const push = exportsRef.pushAudioEvent;
+    const ptrFn = exportsRef.getAudioEventBufPtr;
+    const capFn = exportsRef.getAudioEventBufCap;
+    if (!push || !ptrFn || !capFn) return;
+
+    const socket = new WebSocket(url);
+    events.signal.addEventListener("abort", () => socket.close());
+    socket.addEventListener("message", (message) => {
+      const text = typeof message.data === "string" ? message.data : "";
+      const bytes = new TextEncoder().encode(text);
+      const cap = Number(capFn());
+      if (!memoryRef || bytes.length === 0 || bytes.length > cap) return;
+      const ptr = Number(ptrFn());
+      new Uint8Array(memoryRef.buffer, ptr, bytes.length).set(bytes);
+      push(bytes.length);
+    });
+    socket.addEventListener("open", () => {
+      logDiagnostic(elements.diagnostics, `Audio events connected: ${url}`);
+    });
   }
 
   function drawFrame(now: number) {

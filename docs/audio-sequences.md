@@ -101,9 +101,10 @@ cd examples/ternary-bonsai
 docker compose up --build
 ```
 
+The reference host consumes that socket with `?audio=ws://127.0.0.1:8090/ws`. `@zt-ui/stage` takes the same URL as `audioEventsUrl`. Each JSON message is copied into the wasm buffer and `pushAudioEvent` calls `AudioDemoState.applyHostJson`. The first event switches the panel to `host feed`. A new `sequence_id` starts a new sequence.
+
 ## Next Milestones
 
 1. Add a selected-segment metadata pane with richer payload formatting and optional JSON snapshots.
 2. Add interruption markers, richer input-level metering, and playback error surfacing in the canvas stage.
-3. Wire a browser-side WebSocket feed into the normalized `AudioEvent` contract (consume the ternary-bonsai bridge).
-4. Add coarse DOM-facing state snapshots for non-canvas shells when needed.
+3. Add coarse DOM-facing state snapshots for non-canvas shells when needed.

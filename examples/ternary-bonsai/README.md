@@ -101,6 +101,12 @@ curl -s http://127.0.0.1:8090/api/sequence \
 
 ONNX / ORT can host Bonsai builds in the browser, but this repo’s architecture keeps inference in the host. Docker + PrismML GGUF is the practical path for Ternary Bonsai Q2_0 today; the bridge is what you would also put in front of an ONNX or remote endpoint.
 
-## Next wiring step
+## Wiring the dashboard
 
-zt-ui does not yet ingest live `AudioEvent` feeds over WASM imports. When that seam lands, point the stage host at `ws://bridge:8090/ws` and call `applyEvent` — no change to this producer.
+The producer contract is unchanged. Point a zt-ui host at the bridge socket and it calls `applyEvent` for each JSON message:
+
+```text
+http://127.0.0.1:8080/?audio=ws://127.0.0.1:8090/ws
+```
+
+`@zt-ui/stage` hosts pass the same URL as `audioEventsUrl`. The audio panel switches from the canned demo to `host feed` on the first event. A new `sequence_id` starts a new sequence. Inference stays in llama-server.

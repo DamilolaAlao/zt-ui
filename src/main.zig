@@ -47,6 +47,7 @@ test {
     _ = @import("app.zig");
     _ = @import("dev/server.zig");
     _ = @import("platform/audio_events.zig");
+    _ = @import("platform/audio_event_json.zig");
     _ = @import("platform/input.zig");
     _ = @import("platform/time.zig");
     _ = @import("gfx/renderer.zig");

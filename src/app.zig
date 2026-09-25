@@ -42,6 +42,10 @@ pub const AppRuntime = struct {
         self.input.setViewport(self.viewport);
     }
 
+    pub fn pushAudioEvent(self: *AppRuntime, json: []const u8) void {
+        self.state.audio.applyHostJson(json);
+    }
+
     pub fn frame(self: *AppRuntime, dt_ms: f32) !void {
         self.clock.beginFrame(dt_ms);
 

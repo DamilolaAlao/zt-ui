@@ -40,6 +40,21 @@ export fn keyEvent(code: u32, down: bool) void {
     getRuntime().input.keyEvent(code, down);
 }
 
+var audio_event_buf: [8192]u8 = undefined;
+
+export fn getAudioEventBufPtr() usize {
+    return @intFromPtr(&audio_event_buf);
+}
+
+export fn getAudioEventBufCap() usize {
+    return audio_event_buf.len;
+}
+
+export fn pushAudioEvent(len: usize) void {
+    if (len > audio_event_buf.len) return;
+    getRuntime().pushAudioEvent(audio_event_buf[0..len]);
+}
+
 export fn getCommandsPtr() usize {
     return @intFromPtr(getRuntime().renderer.commandsPtr());
 }

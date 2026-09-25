@@ -1,5 +1,6 @@
 const std = @import("std");
 const audio_events = @import("../platform/audio_events.zig");
+const audio_event_json = @import("../platform/audio_event_json.zig");
 
 pub const ValidationError = error{
     DuplicateSegmentId,
@@ -339,6 +340,7 @@ pub fn demoSequence(segments: []AudioSegment) AudioSequence {
 pub const AudioDemoMode = enum {
     completed_demo,
     live_replay,
+    host_feed,
 };
 
 pub const AudioDemoState = struct {
@@ -373,6 +375,7 @@ pub const AudioDemoState = struct {
         switch (self.mode) {
             .completed_demo => self.tickCompletedDemo(delta_ms),
             .live_replay => self.tickReplay(delta_ms),
+            .host_feed => {},
         }
     }
 
@@ -409,7 +412,7 @@ pub const AudioDemoState = struct {
     pub fn toggleReplayMode(self: *AudioDemoState) void {
         switch (self.mode) {
             .completed_demo => self.startReplay(),
-            .live_replay => self.loadCompletedDemo(),
+            .live_replay, .host_feed => self.loadCompletedDemo(),
         }
     }
 
@@ -446,6 +449,55 @@ pub const AudioDemoState = struct {
         return switch (self.mode) {
             .completed_demo => "completed demo",
             .live_replay => "live replay",
+            .host_feed => "host feed",
+        };
+    }
+
+    /// Adopt a live producer sequence and apply one normalized event.
+    /// Incoming JSON is the bridge payload (`type` plus the fields in `audio_events.zig`).
+    pub fn applyHostJson(self: *AudioDemoState, json: []const u8) void {
+        var scratch: [4096]u8 = undefined;
+        const event = audio_event_json.parse(json, &scratch) catch return;
+        self.applyHostEvent(event);
+    }
+
+    pub fn applyHostEvent(self: *AudioDemoState, event: audio_events.AudioEvent) void {
+        const incoming = sequenceIdOf(event);
+        if (self.mode != .host_feed) {
+            self.beginHostFeed(incoming orelse "seq_host");
+        } else if (incoming) |sequence_id| {
+            if (!self.matchesActiveSequence(sequence_id)) self.beginHostFeed(sequence_id);
+        }
+        self.applyEvent(event);
+        if (timeOf(event)) |at_ms| {
+            self.playback_position_ms = @max(self.playback_position_ms, at_ms);
+        }
+    }
+
+    fn beginHostFeed(self: *AudioDemoState, sequence_id: []const u8) void {
+        self.mode = .host_feed;
+        self.permission_state = .unknown;
+        self.input_level_normalized = 0;
+        self.peak_input_level = 0;
+        self.playback_position_ms = 0;
+        self.replay_event_index = 0;
+        self.segment_count = 0;
+        self.string_len = 0;
+        self.selected_segment_id = null;
+        self.is_playing = true;
+
+        const id = self.copyString(sequence_id);
+        self.sequences[0] = .{
+            .id = id,
+            .version = "1.0",
+            .language = "en-US",
+            .sample_rate_hz = 24_000,
+            .channels = 1,
+            .state = .idle,
+            .started_at_ms = 0,
+            .updated_at_ms = 0,
+            .segments = self.segment_storage[0..0],
+            .metrics = .{},
         };
     }
 
@@ -739,6 +791,33 @@ fn toolStatusFromEvent(status: audio_events.AudioToolCallStatus) ToolCallStatus 
     };
 }
 
+fn sequenceIdOf(event: audio_events.AudioEvent) ?[]const u8 {
+    return switch (event) {
+        .permission_changed => |payload| payload.sequence_id,
+        .input_level => |payload| payload.sequence_id,
+        .segment_started => |payload| payload.sequence_id,
+        .transcript_delta => |payload| payload.sequence_id,
+        .audio_delta => |payload| payload.sequence_id,
+        .tool_call => |payload| payload.sequence_id,
+        .interruption => |payload| payload.sequence_id,
+        .segment_completed => |payload| payload.sequence_id,
+        .sequence_completed => |payload| payload.sequence_id,
+        .error_ => |payload| payload.sequence_id,
+    };
+}
+
+fn timeOf(event: audio_events.AudioEvent) ?u64 {
+    return switch (event) {
+        .input_level => |payload| payload.at_ms,
+        .segment_started => |payload| payload.start_ms,
+        .interruption => |payload| payload.at_ms,
+        .segment_completed => |payload| payload.end_ms,
+        .sequence_completed => |payload| payload.completed_at_ms,
+        .error_ => |payload| payload.at_ms,
+        else => null,
+    };
+}
+
 fn interruptionReasonFromEvent(reason: audio_events.AudioInterruptionReason) InterruptionReason {
     return switch (reason) {
         .user_barge_in => .user_barge_in,
@@ -851,4 +930,36 @@ test "interruption events append a marker and increment metrics" {
     const interruption_segment = state.activeSequence().segments[state.activeSequence().segments.len - 1];
     try std.testing.expectEqual(AudioSegmentKind.interruption, interruption_segment.kind);
     try std.testing.expectEqualStrings("a1", interruption_segment.interruption.?.target_segment_id);
+}
+
+test "host json switches the panel onto the producer sequence" {
+    var state: AudioDemoState = undefined;
+    state.init();
+
+    state.applyHostJson(
+        \\{"type":"permission_changed","sequence_id":"seq_live","state":"granted","_wall_ms":1}
+    );
+    try std.testing.expectEqual(AudioDemoMode.host_feed, state.mode);
+    try std.testing.expectEqualStrings("seq_live", state.activeSequence().id);
+    try std.testing.expectEqual(audio_events.AudioPermissionState.granted, state.permission_state);
+
+    state.applyHostJson(
+        \\{"type":"segment_started","sequence_id":"seq_live","segment_id":"a1","kind":"assistant_speech","start_ms":1200}
+    );
+    state.applyHostJson(
+        \\{"type":"transcript_delta","sequence_id":"seq_live","segment_id":"a1","text":"Error spike.","is_final":false}
+    );
+
+    const segment = state.activeSequence().findSegment("a1").?;
+    try std.testing.expectEqualStrings("Error spike.", segment.text.?);
+    try std.testing.expectEqual(@as(u64, 1200), state.playback_position_ms);
+
+    state.tick(1.0, false);
+    try std.testing.expectEqual(@as(u64, 1200), state.playback_position_ms);
+
+    state.applyHostJson(
+        \\{"type":"segment_started","sequence_id":"seq_next","segment_id":"u1","kind":"user_speech","start_ms":10}
+    );
+    try std.testing.expectEqualStrings("seq_next", state.activeSequence().id);
+    try std.testing.expect(state.activeSequence().findSegment("a1") == null);
 }

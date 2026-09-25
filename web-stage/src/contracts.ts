@@ -15,6 +15,9 @@ export interface ZtRuntimeExports {
   getPointsLen(): number;
   getSnapshotPtr?(): number;
   getSnapshotLen?(): number;
+  getAudioEventBufPtr?(): number;
+  getAudioEventBufCap?(): number;
+  pushAudioEvent?(len: number): void;
 }
 
 export interface RenderFrame {
@@ -78,6 +81,11 @@ export interface MountOptions {
   onStatus?: (status: string) => void;
   /** Host label used in ready messaging. Default: "Host". */
   hostLabel?: string;
+  /**
+   * WebSocket that emits AudioEvent JSON, for example `ws://127.0.0.1:8090/ws`.
+   * Inference stays on that producer. The stage only forwards payloads into Zig.
+   */
+  audioEventsUrl?: string;
 }
 
 export interface MountedStage {

@@ -168,6 +168,7 @@ async function loadRuntime() {
   }
 
   resizeRuntime();
+  connectAudioEvents(new URLSearchParams(window.location.search).get("audio"));
   setText(els.runtimeStatus, "Runtime ready");
   setText(els.backendBadge, "Canvas2D reference");
   setOverlay(
@@ -175,6 +176,34 @@ async function loadRuntime() {
     "The browser bridge is live. Workflow panels and throughput plots are now drawing directly from Zig command buffers.",
   );
   logDiagnostic("Runtime loaded successfully.");
+}
+
+function connectAudioEvents(url) {
+  if (!url || !runtime.exports || !runtime.memory) return;
+  const push = runtime.exports.pushAudioEvent;
+  const ptrFn = runtime.exports.getAudioEventBufPtr;
+  const capFn = runtime.exports.getAudioEventBufCap;
+  if (typeof push !== "function" || typeof ptrFn !== "function" || typeof capFn !== "function") return;
+
+  const socket = new WebSocket(url);
+  socket.addEventListener("message", (message) => {
+    const text = typeof message.data === "string" ? message.data : "";
+    const bytes = new TextEncoder().encode(text);
+    const cap = Number(capFn());
+    if (bytes.length === 0 || bytes.length > cap) return;
+    const ptr = Number(ptrFn());
+    new Uint8Array(runtime.memory.buffer, ptr, bytes.length).set(bytes);
+    push(bytes.length);
+  });
+  socket.addEventListener("open", () => {
+    logDiagnostic(`Audio events connected: ${url}`);
+  });
+  socket.addEventListener("error", () => {
+    logDiagnostic("Audio events socket failed.");
+  });
+  socket.addEventListener("close", () => {
+    logDiagnostic("Audio events socket closed.");
+  });
 }
 
 function drawFrame(now) {
