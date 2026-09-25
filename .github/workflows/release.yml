@@ -83,20 +83,41 @@ jobs:
           cp README.md LICENSE "$linux_stage/"
           tar -C dist -czf "dist/${linux_bundle}.tar.gz" "$linux_bundle"
 
-          (
-            cd dist
-            sha256sum \
-              "${web_bundle}.tar.gz" \
-              "${web_bundle}.zip" \
-              "${linux_bundle}.tar.gz" \
-              > checksums.txt
-          )
-
       - name: Upload packaged assets
         uses: actions/upload-artifact@v4
         with:
           name: release-assets
           path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS app
+    runs-on: macos-latest
+    needs: validate-tag
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Build universal macOS app
+        env:
+          ZT_UI_UNIVERSAL: "1"
+          ZT_UI_VERSION: ${{ needs.validate-tag.outputs.version }}
+          ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos.zip
+        run: ./scripts/build-macos-app.sh
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/zt-ui-*-macos.zip
           if-no-files-found: error
 
   github-release:
@@ -105,6 +126,7 @@ jobs:
     needs:
       - validate-tag
       - assets
+      - macos
     permissions:
       contents: write
 
@@ -112,8 +134,15 @@ jobs:
       - name: Download packaged assets
         uses: actions/download-artifact@v4
         with:
-          name: release-assets
+          pattern: release-*
+          merge-multiple: true
           path: dist
+
+      - name: Write checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -122,6 +151,12 @@ jobs:
           name: ${{ needs.validate-tag.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          body: |
+            ## macOS
+
+            Download `zt-ui-${{ needs.validate-tag.outputs.tag }}-macos.zip`, unzip, and open `zt-ui Desktop.app`.
+
+            The app is a universal binary for macOS 13 or newer (Apple Silicon and Intel). It is ad-hoc signed, so the first launch needs a right-click and Open so Gatekeeper allows it.
           files: |
             dist/*.tar.gz
             dist/*.zip

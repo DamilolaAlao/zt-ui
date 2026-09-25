@@ -183,6 +183,10 @@ open "dist/macos-app/zt-ui Desktop.app"
 This path builds the current local-platform app bundle with the Swift command
 line tools and does not require Xcode project generation.
 
+Tagged releases also publish `zt-ui-vYYYY.M.D-macos.zip` on the GitHub Releases
+page. That zip is a universal app for macOS 13 or newer. Set `ZT_UI_UNIVERSAL=1`
+when running the script locally to build the same Apple Silicon and Intel binary.
+
 For the Ternary Bonsai host example (MLX on Apple Silicon + AudioEvent bridge + zt-ui):
 
 ```sh

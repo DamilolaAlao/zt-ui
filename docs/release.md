@@ -36,8 +36,10 @@ Use this checklist before publishing `zt-ui` as a public repository.
   - `zt-ui-vYYYY.M.D-web.tar.gz`
   - `zt-ui-vYYYY.M.D-web.zip`
   - `zt-ui-vYYYY.M.D-linux-amd64.tar.gz`
+  - `zt-ui-vYYYY.M.D-macos.zip`
   - `checksums.txt`
 - The Linux archive contains the packaged `zt-ui-serve` binary plus the `web/` runtime assets for direct extraction and local serving.
+- The macOS zip contains `zt-ui Desktop.app`, a universal (Apple Silicon and Intel) bundle for macOS 13+. It is ad-hoc signed. The first launch needs a right-click and Open so Gatekeeper allows it.
 - The same workflow publishes a multi-arch container image to GitHub Container Registry:
   - `ghcr.io/<owner>/<repo>:vYYYY.M.D`
   - `ghcr.io/<owner>/<repo>:latest`
