@@ -98,9 +98,15 @@ cp "${ROOT_DIR}/macos/zt-ui-desktop/Info.plist" "${CONTENTS_DIR}/Info.plist"
 cp -R "${ROOT_DIR}/web" "${RESOURCES_DIR}/web"
 cp "${BUILD_ROOT}/app.wasm" "${RESOURCES_DIR}/web/app.wasm"
 
-codesign --force --sign - "${RESOURCES_DIR}/zt-ui-serve"
-codesign --force --sign - "${MACOS_DIR}/zt-ui-desktop"
-codesign --force --sign - "${APP_BUNDLE}"
+if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
+  codesign --force --sign "${CODESIGN_IDENTITY}" --options runtime --timestamp "${RESOURCES_DIR}/zt-ui-serve"
+  codesign --force --sign "${CODESIGN_IDENTITY}" --options runtime --timestamp "${MACOS_DIR}/zt-ui-desktop"
+  codesign --force --sign "${CODESIGN_IDENTITY}" --options runtime --timestamp "${APP_BUNDLE}"
+else
+  codesign --force --sign - "${RESOURCES_DIR}/zt-ui-serve"
+  codesign --force --sign - "${MACOS_DIR}/zt-ui-desktop"
+  codesign --force --sign - "${APP_BUNDLE}"
+fi
 
 if [[ -n "${ZT_UI_MACOS_ZIP:-}" ]]; then
   mkdir -p "$(dirname "${ZT_UI_MACOS_ZIP}")"
