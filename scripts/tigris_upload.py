@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Upload a release object to Tigris.
 
-`aws s3 cp --endpoint-url https://t3.storage.dev` uses path-style URLs.
-Tigris only accepts virtual-hosted requests
-(https://bucket.t3.storage.dev/key) and answers AccessDenied otherwise.
-See https://www.tigrisdata.com/docs/sdks/s3/.
+Object writes use virtual-hosted requests, as in
+https://www.tigrisdata.com/docs/sdks/s3/. A key with no bucket role can still
+list buckets and create a bucket it owns
+(https://www.tigrisdata.com/docs/concepts/authnz/). A new bucket is created
+public with CreateBucket --acl public-read
+(https://www.tigrisdata.com/docs/buckets/public-bucket/).
 """
 
 import os
@@ -17,6 +19,7 @@ os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
 os.environ.setdefault("AWS_REGION", "auto")
 
 ENDPOINT = "https://t3.storage.dev"
+OWNED_BUCKET = "zt-ui-releases"
 
 
 def ensure_venv():
@@ -34,7 +37,7 @@ def ensure_venv():
     os.execv(python, [python, *sys.argv])
 
 
-def client():
+def client(addressing):
     import boto3
     from botocore.config import Config
 
@@ -63,7 +66,7 @@ def client():
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
             retries={"max_attempts": 5, "mode": "standard"},
-            s3={"addressing_style": "virtual"},
+            s3={"addressing_style": addressing},
         ),
     )
 
@@ -76,129 +79,133 @@ def require_tag():
     return tag
 
 
-def explain(s3, bucket, key, error):
-    code = error.response.get("Error", {}).get("Code", "Error")
-    message = error.response.get("Error", {}).get("Message", "")
-    visible = "(list failed)"
-    try:
-        names = [item["Name"] for item in s3.list_buckets().get("Buckets", [])]
-        visible = ", ".join(names) if names else "(none)"
-    except Exception as list_error:
-        visible = f"(list failed: {list_error.__class__.__name__})"
-    print(
-        f"::error::Tigris {code} for s3://{bucket}/{key}: {message} "
-        f"Buckets visible to this key: {visible}",
-        file=sys.stderr,
-    )
+def bucket_file():
+    return os.path.join(os.environ.get("RUNNER_TEMP", "/tmp"), "tigris-bucket")
 
 
-def _call(label, fn):
+def remember_bucket(name):
+    path = bucket_file()
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(name)
+
+
+def remembered_bucket():
+    path = bucket_file()
+    if not os.path.isfile(path):
+        return ""
+    with open(path, encoding="utf-8") as handle:
+        return handle.read().strip()
+
+
+def can_write(s3, bucket):
     from botocore.exceptions import ClientError
 
+    key = ".ci-probe"
     try:
-        fn()
+        s3.put_object(Bucket=bucket, Key=key, Body=b"probe\n", ContentType="text/plain")
+        s3.delete_object(Bucket=bucket, Key=key)
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "Error")
+        print(f"fail put s3://{bucket}/{key}: {code}", flush=True)
+        return False
+    print(f"ok put s3://{bucket}/{key}", flush=True)
+    return True
+
+
+def create_public_bucket(name):
+    from botocore.exceptions import ClientError
+
+    # CreateBucket is path-style. See the public bucket example in
+    # https://www.tigrisdata.com/docs/buckets/public-bucket/
+    try:
+        client("path").create_bucket(Bucket=name, ACL="public-read")
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code", "Error")
         message = error.response.get("Error", {}).get("Message", "")
-        print(f"fail {label}: {code} {message}", flush=True)
+        print(f"create s3://{name}: {code} {message}", flush=True)
+        if code == "BucketAlreadyOwnedByYou":
+            return True
         return False
-    print(f"ok {label}", flush=True)
+    print(f"created public bucket s3://{name}", flush=True)
     return True
+
+
+def ensure_bucket(s3):
+    saved = remembered_bucket()
+    if saved and can_write(s3, saved):
+        return saved
+
+    requested = os.environ["TIGRIS_BUCKET"]
+    if can_write(s3, requested):
+        remember_bucket(requested)
+        return requested
+
+    for name in (requested, OWNED_BUCKET):
+        if not create_public_bucket(name):
+            continue
+        if can_write(s3, name):
+            remember_bucket(name)
+            print(f"using bucket {name}", flush=True)
+            return name
+
+    print(
+        "::error::This access key can list buckets but cannot write to "
+        f"s3://{requested}, and it could not create s3://{OWNED_BUCKET}. "
+        "Assign the key the ReadWrite role on the bucket: "
+        f"tigris access-keys assign <tid> --bucket {requested} --role ReadWrite. "
+        "See https://www.tigrisdata.com/docs/concepts/authnz/",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 
 def probe(s3):
     from botocore.exceptions import ClientError
 
-    bucket = os.environ["TIGRIS_BUCKET"]
+    bucket = ensure_bucket(s3)
     key = f"zt-ui/{require_tag()}/.ci-probe"
-    body = b"zt-ui tigris probe\n"
-
-    put_ok = _call(
-        f"put s3://{bucket}/{key}",
-        lambda: s3.put_object(
-            Bucket=bucket, Key=key, Body=body, ContentType="text/plain"
-        ),
-    )
-    if put_ok:
-        s3.delete_object(Bucket=bucket, Key=key)
-
-    upload_id = {}
-
-    def start_multipart():
+    upload_id = None
+    try:
         created = s3.create_multipart_upload(
             Bucket=bucket, Key=key, ContentType="application/octet-stream"
         )
-        upload_id["id"] = created["UploadId"]
-
-    multipart_ok = _call(f"multipart s3://{bucket}/{key}", start_multipart)
-    if upload_id.get("id"):
-        try:
-            s3.abort_multipart_upload(
-                Bucket=bucket, Key=key, UploadId=upload_id["id"]
-            )
-        except ClientError:
-            pass
-
-    if put_ok and multipart_ok:
-        print(f"Tigris multipart upload ok for s3://{bucket}/{key}")
-        return
-
-    root_ok = _call(
-        f"put s3://{bucket}/.ci-probe",
-        lambda: s3.put_object(
-            Bucket=bucket, Key=".ci-probe", Body=body, ContentType="text/plain"
-        ),
-    )
-    if root_ok:
-        s3.delete_object(Bucket=bucket, Key=".ci-probe")
-
-    writable = []
-    if not put_ok and not root_ok:
-        try:
-            names = [item["Name"] for item in s3.list_buckets().get("Buckets", [])]
-        except ClientError:
-            names = []
-        for name in names:
-            if name == bucket:
-                continue
-            if _call(
-                f"put s3://{name}/.ci-probe",
-                lambda name=name: s3.put_object(
-                    Bucket=name, Key=".ci-probe", Body=body, ContentType="text/plain"
-                ),
-            ):
-                writable.append(name)
-                s3.delete_object(Bucket=name, Key=".ci-probe")
-
-    explain_denied(s3, bucket, key, put_ok, multipart_ok, root_ok, writable)
-    raise SystemExit(1)
-
-
-def explain_denied(s3, bucket, key, put_ok, multipart_ok, root_ok, writable):
-    visible = "(list failed)"
-    try:
-        names = [item["Name"] for item in s3.list_buckets().get("Buckets", [])]
-        visible = ", ".join(names) if names else "(none)"
-    except Exception as list_error:
-        visible = f"(list failed: {list_error.__class__.__name__})"
-    print(
-        "::error::Tigris refused to write "
-        f"s3://{bucket}/{key} "
-        f"(put={'ok' if put_ok else 'denied'}, "
-        f"multipart={'ok' if multipart_ok else 'denied'}, "
-        f"bucket-root put={'ok' if root_ok else 'denied'}). "
-        f"Buckets visible to this key: {visible}. "
-        f"Buckets that accepted a write: {', '.join(writable) if writable else '(none)'}. "
-        "The access key needs s3:PutObject on "
-        f"arn:aws:s3:::{bucket}/zt-ui/*.",
-        file=sys.stderr,
-    )
+        upload_id = created["UploadId"]
+        part = s3.upload_part(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            PartNumber=1,
+            Body=b"zt-ui tigris probe\n",
+        )
+        s3.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": [{"ETag": part["ETag"], "PartNumber": 1}]},
+        )
+        upload_id = None
+        s3.delete_object(Bucket=bucket, Key=key)
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "Error")
+        message = error.response.get("Error", {}).get("Message", "")
+        print(
+            f"::error::Tigris {code} for multipart s3://{bucket}/{key}: {message}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    finally:
+        if upload_id:
+            try:
+                s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
+            except ClientError:
+                pass
+    print(f"Tigris multipart upload ok for s3://{bucket}/{key}")
 
 
 def upload(s3):
     from botocore.exceptions import ClientError
 
-    bucket = os.environ["TIGRIS_BUCKET"]
+    bucket = ensure_bucket(s3)
     path = os.environ.get("ZT_UI_MACOS_ZIP", "")
     if not path or not os.path.isfile(path):
         print(f"::error::Missing zip: {path or '(unset)'}", file=sys.stderr)
@@ -225,7 +232,12 @@ def upload(s3):
             Callback=report,
         )
     except ClientError as error:
-        explain(s3, bucket, key, error)
+        code = error.response.get("Error", {}).get("Code", "Error")
+        message = error.response.get("Error", {}).get("Message", "")
+        print(
+            f"::error::Tigris {code} for s3://{bucket}/{key}: {message}",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     url = f"https://{bucket}.t3.tigrisfiles.io/{key}"
@@ -241,7 +253,7 @@ def main():
         print("usage: tigris_upload.py probe|upload", file=sys.stderr)
         raise SystemExit(2)
     ensure_venv()
-    s3 = client()
+    s3 = client("virtual")
     if sys.argv[1] == "probe":
         probe(s3)
     else:
