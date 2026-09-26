@@ -236,10 +236,11 @@ jobs:
           fi
           name="$(basename "$ZT_UI_MACOS_ZIP")"
           key="zt-ui/${{ needs.validate-tag.outputs.tag }}/${name}"
+          # Object ACLs are off by default. Sending --acl public-read makes
+          # CreateMultipartUpload return AccessDenied for this key.
           aws s3 cp "$ZT_UI_MACOS_ZIP" "s3://${TIGRIS_BUCKET}/${key}" \
             --endpoint-url https://t3.storage.dev \
-            --content-type application/zip \
-            --acl public-read
+            --content-type application/zip
           url="https://${TIGRIS_BUCKET}.t3.tigrisfiles.io/${key}"
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "Uploaded ${url}"
