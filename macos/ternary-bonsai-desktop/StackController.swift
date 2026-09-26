@@ -8,7 +8,7 @@ enum StackLaunchError: LocalizedError {
     case failedToStart(String)
     case terminated(String, Int32)
     case readinessTimeout(String, URL)
-    case modelDownload(String)
+    case missingModel(URL)
 
     var errorDescription: String? {
         switch self {
@@ -24,8 +24,8 @@ enum StackLaunchError: LocalizedError {
             return "`\(name)` exited early with status \(status)."
         case .readinessTimeout(let name, let url):
             return "`\(name)` did not become healthy in time at \(url.absoluteString)."
-        case .modelDownload(let message):
-            return "Model download failed. \(message)"
+        case .missingModel(let url):
+            return "The bundled MLX model is missing at \(url.path)."
         }
     }
 }
@@ -38,14 +38,14 @@ struct StackURLs {
 
 final class StackController {
     private let resourcesURL: URL
-    private let supportURL: URL
-    private let mlxRepo = "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit"
-    private let mlxModelDirName = "Ternary-Bonsai-1.7B-mlx-2bit"
+    /// MLX bf16 export of https://huggingface.co/LiquidAI/LFM2.5-2.6B
+    private let modelRepo = "LiquidAI/LFM2.5-2.6B"
+    private let modelDirName = "LFM2.5-2.6B-MLX-bf16"
 
     private var processes: [Process] = []
     private var logPipes: [Pipe] = []
     private var urls: StackURLs?
-    private let readinessTimeoutNanos: UInt64 = 300_000_000_000
+    private let readinessTimeoutNanos: UInt64 = 600_000_000_000
 
     var stackURLs: StackURLs? { urls }
 
@@ -54,60 +54,19 @@ final class StackController {
             throw StackLaunchError.missingResources(bundle.bundleURL)
         }
         self.resourcesURL = resourcesURL
-
-        let supportRoot = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let supportURL = supportRoot.appendingPathComponent("zt-ui Ternary Bonsai", isDirectory: true)
-        try FileManager.default.createDirectory(at: supportURL, withIntermediateDirectories: true)
-        self.supportURL = supportURL
     }
 
-    /// Ensures the MLX weight directory exists under Application Support.
-    func ensureModel(progress: @escaping @Sendable (String) -> Void) async throws -> URL {
-        let modelURL = supportURL.appendingPathComponent(mlxModelDirName, isDirectory: true)
-        let weights = modelURL.appendingPathComponent("model.safetensors")
-        if FileManager.default.fileExists(atPath: weights.path) {
-            progress("MLX model ready.")
+    /// MLX weights shipped inside the app bundle by the macOS build.
+    func bundledModelURL() throws -> URL {
+        let modelURL = resourcesURL
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent(modelDirName, isDirectory: true)
+        let index = modelURL.appendingPathComponent("model.safetensors.index.json")
+        let single = modelURL.appendingPathComponent("model.safetensors")
+        if FileManager.default.fileExists(atPath: index.path) || FileManager.default.fileExists(atPath: single.path) {
             return modelURL
         }
-
-        let python = try mlxPython()
-        progress("Downloading Ternary-Bonsai-1.7B MLX 2-bit (~480 MB)…")
-
-        try FileManager.default.createDirectory(at: modelURL, withIntermediateDirectories: true)
-
-        let process = Process()
-        process.executableURL = python
-        process.arguments = [
-            "-c",
-            """
-            from huggingface_hub import snapshot_download
-            snapshot_download(
-                repo_id="\(mlxRepo)",
-                local_dir=r"\(modelURL.path)",
-            )
-            print("ok")
-            """,
-        ]
-        process.environment = ProcessInfo.processInfo.environment
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        do {
-            try process.run()
-        } catch {
-            throw StackLaunchError.modelDownload(error.localizedDescription)
-        }
-
-        process.waitUntilExit()
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        guard process.terminationStatus == 0, FileManager.default.fileExists(atPath: weights.path) else {
-            throw StackLaunchError.modelDownload(log.isEmpty ? "huggingface_hub snapshot_download failed." : log)
-        }
-
-        progress("MLX model saved.")
-        return modelURL
+        throw StackLaunchError.missingModel(modelURL)
     }
 
     func start(modelURL: URL, progress: @escaping @Sendable (String) -> Void) throws -> StackURLs {
@@ -126,7 +85,7 @@ final class StackController {
         progress("Starting zt-ui…")
         try startZtUI(port: ztPort)
 
-        progress("Starting Ternary Bonsai (MLX)…")
+        progress("Starting LFM2.5-2.6B (MLX)…")
         try startMlx(port: inferencePort, modelURL: modelURL)
 
         progress("Starting AudioEvent bridge…")
@@ -230,7 +189,8 @@ final class StackController {
         env["LLAMA_URL"] = inferenceURL.absoluteString
         env["ZT_UI_URL"] = ztURL.absoluteString
         env["INFERENCE_BACKEND"] = "mlx"
-        env["MODEL_NAME"] = mlxRepo
+        env["MODEL_NAME"] = modelRepo
+        env["MODEL_FAMILY"] = "lfm"
 
         try launch(
             name: "bridge",

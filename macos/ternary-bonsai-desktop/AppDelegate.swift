@@ -23,13 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "zt-ui Ternary Bonsai"
+        window.title = "zt-ui LFM2.5"
         window.center()
         window.contentView = webView
         window.makeKeyAndOrderFront(nil)
         self.window = window
 
-        webView.loadHTMLString(Self.statusHTML(title: "Launching Ternary Bonsai", body: "Preparing the local stack…"), baseURL: nil)
+        webView.loadHTMLString(Self.statusHTML(title: "Launching LFM2.5", body: "Preparing the local stack…"), baseURL: nil)
         NSApp.activate(ignoringOtherApps: true)
 
         Task { @MainActor in
@@ -51,19 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             let controller = try StackController()
             self.stackController = controller
 
-            let modelURL = try await controller.ensureModel { [weak self] message in
-                Task { @MainActor in
-                    self?.webView?.loadHTMLString(
-                        Self.statusHTML(title: "Launching Ternary Bonsai", body: message),
-                        baseURL: nil
-                    )
-                }
-            }
+            let modelURL = try controller.bundledModelURL()
 
             let urls = try controller.start(modelURL: modelURL) { [weak self] message in
                 Task { @MainActor in
                     self?.webView?.loadHTMLString(
-                        Self.statusHTML(title: "Launching Ternary Bonsai", body: message),
+                        Self.statusHTML(title: "Launching LFM2.5", body: message),
                         baseURL: nil
                     )
                 }
@@ -73,20 +66,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             try await controller.waitUntilReady { [weak self] message in
                 Task { @MainActor in
                     self?.webView?.loadHTMLString(
-                        Self.statusHTML(title: "Launching Ternary Bonsai", body: message),
+                        Self.statusHTML(title: "Launching LFM2.5", body: message),
                         baseURL: nil
                     )
                 }
             }
 
-            webView?.load(URLRequest(url: urls.bridge))
+            webView?.load(URLRequest(url: Self.threadURL(urls.bridge)))
         } catch {
             let message = error.localizedDescription
             webView?.loadHTMLString(Self.statusHTML(title: "Launch failed", body: message), baseURL: nil)
 
             let alert = NSAlert()
             alert.alertStyle = .critical
-            alert.messageText = "Unable to launch Ternary Bonsai"
+            alert.messageText = "Unable to launch LFM2.5"
             alert.informativeText = message
             alert.runModal()
         }
@@ -99,22 +92,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
-        appMenu.addItem(withTitle: "Quit zt-ui Ternary Bonsai", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit zt-ui LFM2.5", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let viewMenuItem = NSMenuItem()
         mainMenu.addItem(viewMenuItem)
         let viewMenu = NSMenu(title: "View")
         viewMenuItem.submenu = viewMenu
-        viewMenu.addItem(withTitle: "Bridge", action: #selector(showBridge), keyEquivalent: "1")
+        viewMenu.addItem(withTitle: "Thread", action: #selector(showThread), keyEquivalent: "1")
         viewMenu.addItem(withTitle: "zt-ui Dashboard", action: #selector(showZtUI), keyEquivalent: "2")
 
         NSApp.mainMenu = mainMenu
     }
 
-    @objc private func showBridge() {
+    @objc private func showThread() {
         guard let url = stackURLs?.bridge else { return }
-        webView?.load(URLRequest(url: url))
-        window?.title = "zt-ui Ternary Bonsai"
+        webView?.load(URLRequest(url: Self.threadURL(url)))
+        window?.title = "zt-ui LFM2.5"
+    }
+
+    private static func threadURL(_ bridge: URL) -> URL {
+        bridge.appending(path: "thread")
     }
 
     @objc private func showZtUI() {

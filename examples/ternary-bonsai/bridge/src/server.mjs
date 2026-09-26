@@ -25,6 +25,7 @@ const PORT = Number(process.env.PORT ?? 8090);
 const LLAMA_URL = (process.env.LLAMA_URL ?? "http://127.0.0.1:8081").replace(/\/$/, "");
 const ZT_UI_URL = process.env.ZT_UI_URL ?? "http://127.0.0.1:8080";
 const MODEL_NAME = process.env.MODEL_NAME ?? "Ternary-Bonsai-1.7B";
+const MODEL_FAMILY = process.env.MODEL_FAMILY ?? "ternary";
 const INFERENCE_BACKEND = process.env.INFERENCE_BACKEND ?? "llama";
 const SYSTEM_PROMPT =
   process.env.SYSTEM_PROMPT ??
@@ -60,6 +61,7 @@ function sendJson(res, status, body) {
 function serveStatic(req, res) {
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
   let rel = url.pathname === "/" ? "/index.html" : url.pathname;
+  if (rel === "/thread") rel = "/thread.html";
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
   if (!filePath.startsWith(PUBLIC_DIR)) {
@@ -183,7 +185,7 @@ const server = http.createServer(async (req, res) => {
       zt_ui_url: ZT_UI_URL,
       model: MODEL_NAME,
       backend: INFERENCE_BACKEND,
-      family: "ternary",
+      family: MODEL_FAMILY,
     });
     return;
   }

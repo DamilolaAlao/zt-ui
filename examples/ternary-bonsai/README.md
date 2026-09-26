@@ -32,19 +32,18 @@ Q2_0 ternary kernels are **not** in mainline llama.cpp yet; the `llama` image in
 
 ## Desktop App (macOS, MLX)
 
-Bundles **Ternary-Bonsai-1.7B MLX 2-bit** via `mlx_lm.server`, a vendored Node bridge, and `zt-ui-serve` into a native WKWebView shell. Apple Silicon only.
+Apple Silicon only. The build embeds [`LiquidAI/LFM2.5-2.6B-MLX-bf16`](https://huggingface.co/LiquidAI/LFM2.5-2.6B-MLX-bf16) (~5.4 GB), the MLX export of [`LiquidAI/LFM2.5-2.6B`](https://huggingface.co/LiquidAI/LFM2.5-2.6B), and serves it with `mlx_lm.server` next to the Node bridge and `zt-ui-serve`.
 
 ```sh
 ./scripts/build-macos-app.sh
-open "dist/macos-ternary-bonsai/zt-ui Ternary Bonsai.app"
+open "../../dist/macos-mlx/zt-ui LFM2.5.app"
 ```
 
-First launch downloads [`prism-ml/Ternary-Bonsai-1.7B-mlx-2bit`](https://huggingface.co/prism-ml/Ternary-Bonsai-1.7B-mlx-2bit) (~480 MB) into
-`~/Library/Application Support/zt-ui Ternary Bonsai/Ternary-Bonsai-1.7B-mlx-2bit/`.
+Weights are copied into the app at build time (`Contents/Resources/models/LFM2.5-2.6B-MLX-bf16`). Launch does not download a model.
 
-Menu **View → Bridge** (`⌘1`) and **View → zt-ui Dashboard** (`⌘2`) switch the embedded surfaces.
+The window opens a chat thread: sidebar, message column, and a composer along the bottom. Menu **View → Thread** (`⌘1`) and **View → zt-ui Dashboard** (`⌘2`) switch the embedded surfaces. Docker still serves the ops bridge page.
 
-Docker still uses PrismML **GGUF Q2_0** + `llama-server` (cross-platform CPU). Desktop prefers native MLX.
+Docker still uses PrismML **GGUF Q2_0** + `llama-server` (cross-platform CPU). The macOS app uses MLX.
 
 ## Run (Docker)
 

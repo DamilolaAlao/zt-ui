@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>zt-ui · Ternary Bonsai bridge</title>
+    <title>zt-ui · AudioEvent bridge</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="hero">
         <p class="kicker">examples/ternary-bonsai</p>
-        <h1>Ternary Bonsai → AudioEvent</h1>
-        <p class="lede">
-          Host-side PrismML Ternary-Bonsai-1.7B streams into the same
+        <h1 id="model-title">AudioEvent bridge</h1>
+        <p class="lede" id="model-lede">
+          Host-side inference streams into the same
           <code>AudioEvent</code> contract Zig already consumes. Inference stays
           outside <code>app.wasm</code>.
         </p>
@@ -41,7 +41,7 @@
         </article>
         <article>
           <h2>Assistant text</h2>
-          <pre id="assistant" class="assistant">Waiting for Ternary Bonsai…</pre>
+          <pre id="assistant" class="assistant">Waiting for the model…</pre>
           <dl id="metrics" class="metrics"></dl>
         </article>
       </section>

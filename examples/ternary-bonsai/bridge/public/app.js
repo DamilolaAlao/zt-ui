@@ -70,6 +70,17 @@ async function loadConfig() {
   if (!res.ok) return;
   const cfg = await res.json();
   if (cfg.zt_ui_url) ztLink.href = cfg.zt_ui_url;
+  if (!cfg.model) return;
+  const titleEl = document.getElementById("model-title");
+  const ledeEl = document.getElementById("model-lede");
+  if (titleEl) titleEl.textContent = `${cfg.model} → AudioEvent`;
+  if (ledeEl) {
+    ledeEl.textContent = `Host-side ${cfg.model} streams into the same AudioEvent contract Zig already consumes. Inference stays outside app.wasm.`;
+  }
+  document.title = `zt-ui · ${cfg.model}`;
+  if (assistantEl.textContent.startsWith("Waiting")) {
+    assistantEl.textContent = `Waiting for ${cfg.model}…`;
+  }
 }
 
 async function runSequence() {

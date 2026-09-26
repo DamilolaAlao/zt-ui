@@ -192,6 +192,44 @@ jobs:
           path: dist/zt-ui-*-macos.zip
           if-no-files-found: error
 
+  macos-mlx:
+    name: Build macOS MLX app
+    runs-on: macos-latest
+    needs: validate-tag
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Build Apple Silicon app with embedded LFM2.5
+        env:
+          ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
+        run: ./examples/ternary-bonsai/scripts/build-macos-app.sh
+
+      - name: Split MLX zip under the 2 GiB release limit
+        env:
+          ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
+        run: |
+          set -euo pipefail
+          rm -rf dist/macos-mlx
+          split -b 1900m "$ZT_UI_MACOS_ZIP" "${ZT_UI_MACOS_ZIP}.part-"
+          rm -f "$ZT_UI_MACOS_ZIP"
+          ls -lh dist/zt-ui-*-macos-mlx.zip.part-*
+
+      - name: Upload macOS MLX app
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-mlx
+          path: dist/zt-ui-*-macos-mlx.zip.part-*
+          if-no-files-found: error
+
   github-release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
@@ -199,6 +237,7 @@ jobs:
       - validate-tag
       - assets
       - macos
+      - macos-mlx
     permissions:
       contents: write
 
@@ -214,7 +253,13 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum *.tar.gz *.zip > checksums.txt
+          shopt -s nullglob
+          files=(*.tar.gz *.zip *.zip.part-*)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "no release files" >&2
+            exit 1
+          fi
+          sha256sum "${files[@]}" > checksums.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -229,9 +274,22 @@ jobs:
             Download `zt-ui-${{ needs.validate-tag.outputs.tag }}-macos.zip`, unzip, and open `zt-ui Desktop.app`.
 
             The app is a universal binary for macOS 13 or newer (Apple Silicon and Intel), signed with Developer ID and notarized.
+
+            ## macOS MLX
+
+            Apple Silicon app with [LiquidAI/LFM2.5-2.6B-MLX-bf16](https://huggingface.co/LiquidAI/LFM2.5-2.6B-MLX-bf16) embedded (MLX export of [LFM2.5-2.6B](https://huggingface.co/LiquidAI/LFM2.5-2.6B)).
+
+            GitHub release assets must be under 2 GiB, so the zip is split. Reassemble, then open the app:
+
+            ```sh
+            cat zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip.part-* > zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
+            unzip zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
+            open "zt-ui LFM2.5.app"
+            ```
           files: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.zip.part-*
             dist/checksums.txt
 
   ghcr:

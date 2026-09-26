@@ -37,9 +37,11 @@ Use this checklist before publishing `zt-ui` as a public repository.
   - `zt-ui-vYYYY.M.D-web.zip`
   - `zt-ui-vYYYY.M.D-linux-amd64.tar.gz`
   - `zt-ui-vYYYY.M.D-macos.zip`
+  - `zt-ui-vYYYY.M.D-macos-mlx.zip.part-*`
   - `checksums.txt`
 - The Linux archive contains the packaged `zt-ui-serve` binary plus the `web/` runtime assets for direct extraction and local serving.
 - The macOS zip contains `zt-ui Desktop.app`, a universal (Apple Silicon and Intel) bundle for macOS 13+. The release job signs it with the Developer ID certificate in `APPLE_CERTIFICATE_P12` / `APPLE_SIGNING_IDENTITY`, then notarizes it with `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`. Set `APPLE_CERTIFICATE_PASSWORD` when the `.p12` has a password.
+- The macOS MLX parts are an Apple Silicon-only `zt-ui LFM2.5.app` with [`LiquidAI/LFM2.5-2.6B-MLX-bf16`](https://huggingface.co/LiquidAI/LFM2.5-2.6B-MLX-bf16) embedded. GitHub release assets must be under 2 GiB, so the zip is split. Reassemble with `cat zt-ui-vYYYY.M.D-macos-mlx.zip.part-* > zt-ui-vYYYY.M.D-macos-mlx.zip`.
 - The same workflow publishes a multi-arch container image to GitHub Container Registry:
   - `ghcr.io/<owner>/<repo>:vYYYY.M.D`
   - `ghcr.io/<owner>/<repo>:latest`

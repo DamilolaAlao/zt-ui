@@ -187,11 +187,11 @@ Tagged releases also publish `zt-ui-vYYYY.M.D-macos.zip` on the GitHub Releases
 page. That zip is a universal app for macOS 13 or newer. Set `ZT_UI_UNIVERSAL=1`
 when running the script locally to build the same Apple Silicon and Intel binary.
 
-For the Ternary Bonsai host example (MLX on Apple Silicon + AudioEvent bridge + zt-ui):
+For the Apple Silicon host (MLX LFM2.5-2.6B embedded at build time, chat thread, and zt-ui):
 
 ```sh
 ./examples/ternary-bonsai/scripts/build-macos-app.sh
-open "dist/macos-ternary-bonsai/zt-ui Ternary Bonsai.app"
+open "dist/macos-mlx/zt-ui LFM2.5.app"
 ```
 
 See [examples/ternary-bonsai/README.md](./examples/ternary-bonsai/README.md).

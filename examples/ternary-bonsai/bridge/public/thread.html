@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>zt-ui · Thread</title>
+    <link rel="stylesheet" href="/thread.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Threads">
+        <div class="sidebar-top">
+          <button id="new-thread" type="button">New thread</button>
+        </div>
+        <ol id="thread-list" class="thread-list"></ol>
+      </aside>
+
+      <section class="stage" id="stage" data-empty="true">
+        <header class="thread-header">
+          <h1 id="thread-title">New thread</h1>
+          <a id="dashboard-link" href="http://127.0.0.1:8080">Dashboard</a>
+        </header>
+
+        <div class="timeline-wrap">
+          <div id="timeline" class="timeline" aria-live="polite"></div>
+        </div>
+
+        <div class="composer-dock">
+          <div class="draft-headline" id="draft-headline">
+            <p class="draft-kicker">zt-ui</p>
+            <h2 id="draft-title">LFM2.5</h2>
+          </div>
+          <form id="composer" class="composer-shell">
+            <div class="composer-host">
+              <label class="sr-only" for="prompt">Message</label>
+              <textarea id="prompt" rows="1" placeholder="Message LFM2.5…"></textarea>
+              <div class="composer-bar">
+                <span id="model-chip" class="model-chip">LFM2.5-2.6B</span>
+                <span id="status" class="status" data-state="booting">connecting</span>
+                <button id="send" type="submit">Send</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+    <script src="/thread.js" type="module"></script>
+  </body>
+</html>
