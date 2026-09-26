@@ -205,6 +205,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Check Tigris multipart upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
+          AWS_REGION: auto
+          TIGRIS_BUCKET: ${{ vars.TIGRIS_BUCKET }}
+          ZT_UI_TAG: ${{ needs.validate-tag.outputs.tag }}
+          TIGRIS_VENV: ${{ runner.temp }}/tigris-venv
+        run: python3 scripts/tigris_upload.py probe
+
       - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
@@ -221,29 +231,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
           AWS_REGION: auto
-          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
           TIGRIS_BUCKET: ${{ vars.TIGRIS_BUCKET }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${TIGRIS_BUCKET}" || -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]]; then
-            echo "::error::Set the TIGRIS_BUCKET variable and the TIGRIS_ACCESS_KEY_ID / TIGRIS_SECRET_ACCESS_KEY secrets. See https://www.tigrisdata.com/docs/sdks/s3/"
-            exit 1
-          fi
-          if ! command -v aws >/dev/null 2>&1; then
-            brew install awscli
-          fi
-          name="$(basename "$ZT_UI_MACOS_ZIP")"
-          key="zt-ui/${{ needs.validate-tag.outputs.tag }}/${name}"
-          # Object ACLs are off by default. Sending --acl public-read makes
-          # CreateMultipartUpload return AccessDenied for this key.
-          aws s3 cp "$ZT_UI_MACOS_ZIP" "s3://${TIGRIS_BUCKET}/${key}" \
-            --endpoint-url https://t3.storage.dev \
-            --content-type application/zip
-          url="https://${TIGRIS_BUCKET}.t3.tigrisfiles.io/${key}"
-          echo "url=${url}" >> "$GITHUB_OUTPUT"
-          echo "Uploaded ${url}"
+          ZT_UI_TAG: ${{ needs.validate-tag.outputs.tag }}
+          TIGRIS_VENV: ${{ runner.temp }}/tigris-venv
+        run: python3 scripts/tigris_upload.py upload
 
       - name: Split MLX zip under the 2 GiB release limit
         env:
