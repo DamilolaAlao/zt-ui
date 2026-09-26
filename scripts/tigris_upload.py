@@ -92,42 +92,107 @@ def explain(s3, bucket, key, error):
     )
 
 
+def _call(label, fn):
+    from botocore.exceptions import ClientError
+
+    try:
+        fn()
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "Error")
+        message = error.response.get("Error", {}).get("Message", "")
+        print(f"fail {label}: {code} {message}", flush=True)
+        return False
+    print(f"ok {label}", flush=True)
+    return True
+
+
 def probe(s3):
     from botocore.exceptions import ClientError
 
     bucket = os.environ["TIGRIS_BUCKET"]
     key = f"zt-ui/{require_tag()}/.ci-probe"
-    upload_id = None
-    try:
+    body = b"zt-ui tigris probe\n"
+
+    put_ok = _call(
+        f"put s3://{bucket}/{key}",
+        lambda: s3.put_object(
+            Bucket=bucket, Key=key, Body=body, ContentType="text/plain"
+        ),
+    )
+    if put_ok:
+        s3.delete_object(Bucket=bucket, Key=key)
+
+    upload_id = {}
+
+    def start_multipart():
         created = s3.create_multipart_upload(
             Bucket=bucket, Key=key, ContentType="application/octet-stream"
         )
-        upload_id = created["UploadId"]
-        part = s3.upload_part(
-            Bucket=bucket,
-            Key=key,
-            UploadId=upload_id,
-            PartNumber=1,
-            Body=b"zt-ui tigris probe\n",
-        )
-        s3.complete_multipart_upload(
-            Bucket=bucket,
-            Key=key,
-            UploadId=upload_id,
-            MultipartUpload={"Parts": [{"ETag": part["ETag"], "PartNumber": 1}]},
-        )
-        upload_id = None
-        s3.delete_object(Bucket=bucket, Key=key)
-    except ClientError as error:
-        explain(s3, bucket, key, error)
-        raise SystemExit(1)
-    finally:
-        if upload_id:
-            try:
-                s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
-            except ClientError:
-                pass
-    print(f"Tigris multipart upload ok for s3://{bucket}/{key}")
+        upload_id["id"] = created["UploadId"]
+
+    multipart_ok = _call(f"multipart s3://{bucket}/{key}", start_multipart)
+    if upload_id.get("id"):
+        try:
+            s3.abort_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id["id"]
+            )
+        except ClientError:
+            pass
+
+    if put_ok and multipart_ok:
+        print(f"Tigris multipart upload ok for s3://{bucket}/{key}")
+        return
+
+    root_ok = _call(
+        f"put s3://{bucket}/.ci-probe",
+        lambda: s3.put_object(
+            Bucket=bucket, Key=".ci-probe", Body=body, ContentType="text/plain"
+        ),
+    )
+    if root_ok:
+        s3.delete_object(Bucket=bucket, Key=".ci-probe")
+
+    writable = []
+    if not put_ok and not root_ok:
+        try:
+            names = [item["Name"] for item in s3.list_buckets().get("Buckets", [])]
+        except ClientError:
+            names = []
+        for name in names:
+            if name == bucket:
+                continue
+            if _call(
+                f"put s3://{name}/.ci-probe",
+                lambda name=name: s3.put_object(
+                    Bucket=name, Key=".ci-probe", Body=body, ContentType="text/plain"
+                ),
+            ):
+                writable.append(name)
+                s3.delete_object(Bucket=name, Key=".ci-probe")
+
+    explain_denied(s3, bucket, key, put_ok, multipart_ok, root_ok, writable)
+    raise SystemExit(1)
+
+
+def explain_denied(s3, bucket, key, put_ok, multipart_ok, root_ok, writable):
+    visible = "(list failed)"
+    try:
+        names = [item["Name"] for item in s3.list_buckets().get("Buckets", [])]
+        visible = ", ".join(names) if names else "(none)"
+    except Exception as list_error:
+        visible = f"(list failed: {list_error.__class__.__name__})"
+    print(
+        "::error::Tigris refused to write "
+        f"s3://{bucket}/{key} "
+        f"(put={'ok' if put_ok else 'denied'}, "
+        f"multipart={'ok' if multipart_ok else 'denied'}, "
+        f"bucket-root put={'ok' if root_ok else 'denied'}). "
+        f"Buckets visible to this key: {visible}. "
+        f"Buckets that accepted a write: {', '.join(writable) if writable else '(none)'}. "
+        "The access key needs s3:PutObject on "
+        f"arn:aws:s3:::{bucket}/zt-ui/*.",
+        file=sys.stderr,
+    )
 
 
 def upload(s3):
