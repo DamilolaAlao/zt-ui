@@ -198,6 +198,8 @@ jobs:
     needs: validate-tag
     permissions:
       contents: read
+    outputs:
+      mlx_url: ${{ steps.tigris.outputs.url }}
 
     steps:
       - name: Check out repository
@@ -212,6 +214,35 @@ jobs:
         env:
           ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
         run: ./examples/ternary-bonsai/scripts/build-macos-app.sh
+
+      - name: Upload full MLX zip to Tigris
+        id: tigris
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
+          AWS_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ZT_UI_MACOS_ZIP: dist/zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
+          TIGRIS_BUCKET: ${{ vars.TIGRIS_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TIGRIS_BUCKET}" || -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::Set the TIGRIS_BUCKET variable and the TIGRIS_ACCESS_KEY_ID / TIGRIS_SECRET_ACCESS_KEY secrets. See https://www.tigrisdata.com/docs/sdks/s3/"
+            exit 1
+          fi
+          if ! command -v aws >/dev/null 2>&1; then
+            brew install awscli
+          fi
+          name="$(basename "$ZT_UI_MACOS_ZIP")"
+          key="zt-ui/${{ needs.validate-tag.outputs.tag }}/${name}"
+          aws s3 cp "$ZT_UI_MACOS_ZIP" "s3://${TIGRIS_BUCKET}/${key}" \
+            --endpoint-url https://t3.storage.dev \
+            --content-type application/zip \
+            --acl public-read
+          url="https://${TIGRIS_BUCKET}.t3.tigrisfiles.io/${key}"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Uploaded ${url}"
 
       - name: Split MLX zip under the 2 GiB release limit
         env:
@@ -279,7 +310,9 @@ jobs:
 
             Apple Silicon app with [LiquidAI/LFM2.5-2.6B-MLX-bf16](https://huggingface.co/LiquidAI/LFM2.5-2.6B-MLX-bf16) embedded (MLX export of [LFM2.5-2.6B](https://huggingface.co/LiquidAI/LFM2.5-2.6B)).
 
-            GitHub release assets must be under 2 GiB, so the zip is split. Reassemble, then open the app:
+            Download the full zip from Tigris: ${{ needs.macos-mlx.outputs.mlx_url }}
+
+            GitHub release assets must be under 2 GiB, so a split copy is also attached. Reassemble, then open the app:
 
             ```sh
             cat zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip.part-* > zt-ui-${{ needs.validate-tag.outputs.tag }}-macos-mlx.zip
